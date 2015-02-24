@@ -1,7 +1,7 @@
 require 'shellwords'
 require 'dr/ruby_ext/core_ext'
-require_relative 'pathname'
 require 'dr/parse/simple_parser'
+require 'shell_helpers/pathname'
 
 module ShellHelpers
 	module ShellExport

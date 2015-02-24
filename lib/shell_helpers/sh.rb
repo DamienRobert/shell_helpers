@@ -1,9 +1,18 @@
 # vim: foldmethod=marker
 #from methadone (error.rb, exit_now.rb, process_status.rb, run.rb; last
 #import v1.3.1-2-g9be3b5a)
-require_relative 'logger'
-require_relative 'run'
-require 'simplecolor'
+require 'shell_helpers/logger'
+require 'shell_helpers/run'
+begin
+	require 'simplecolor'
+rescue LoadError
+	#fallback, don't colorize
+	module SimpleColor
+		def self.color(s,**opts)
+			puts s
+		end
+	end
+end
 
 module ShellHelpers
 	# ExitNow {{{
