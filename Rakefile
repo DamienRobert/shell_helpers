@@ -32,8 +32,3 @@ rescue LoadError => e
   end
 end
 task :doc => :yard
-
-Gem::Tasks.new(sign: {checksum: true, pgp: true},
-               build: {tar: true}, scm: {status: true}) do |tasks|
-  tasks.console.command = 'pry'
-end

@@ -1,6 +1,7 @@
 name: shell_helpers
-summary: "TODO: Summary"
-description: "TODO: Description"
+summary: "Shell Helpers"
+description: |
+  Collection of script to ease working with the shell with ruby.
 license: MIT
 authors: Damien Robert
 email: Damien.Olivier.Robert+gems@gmail.com
