@@ -1,7 +1,7 @@
 require 'shellwords'
 require 'dr/ruby_ext/core_ext'
 require_relative 'pathname'
-require_relative 'parser'
+require 'dr/parse/simple_parser'
 
 module ShellHelpers
 	module ShellExport
@@ -65,7 +65,7 @@ module ShellHelpers
 		#But in split hash mode, we put the keys in uppercase (to prevent collisions)
 		def export_parse(hash,s)
 			r=""
-			args=Parser.parse_string(s)
+			args=SimpleParser.parse_string(s)
 			args[:values].each do |k,v|
 				name=k
 				if !v
