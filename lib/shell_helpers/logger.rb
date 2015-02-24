@@ -2,7 +2,7 @@
 #From methadone (cli_logger.rb, cli_logging.rb, last import: v1.3.1-2-g9be3b5a)
 require 'logger'
 
-module SH
+module ShellHelpers
 	# CLILogger {{{
 	# A Logger instance that gives better control of messaging the user and
 	# logging app activity.  At it's most basic, you would use <tt>info</tt>

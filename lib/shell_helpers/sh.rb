@@ -5,7 +5,7 @@ require_relative 'logger'
 require_relative 'run'
 require 'simplecolor'
 
-module SH
+module ShellHelpers
 	# ExitNow {{{
 	# Standard exception you can throw to exit with a given status code.
 	# Generally, you should prefer DR::ExitNow.exit_now! over using this

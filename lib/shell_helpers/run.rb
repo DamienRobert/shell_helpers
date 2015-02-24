@@ -2,7 +2,7 @@
 require 'open3'
 require 'shellwords'
 
-module SH
+module ShellHelpers
 	module Run #{{{
 		extend(self)
 		#the run_* commands here capture all the output

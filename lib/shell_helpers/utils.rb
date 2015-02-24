@@ -3,7 +3,7 @@ require 'dr/ruby_ext/core_ext'
 require_relative 'pathname'
 require_relative 'parser'
 
-module SH
+module ShellHelpers
 	module ShellExport
 		extend self
 

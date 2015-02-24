@@ -8,7 +8,7 @@ Dir.glob(File.expand_path('*.rb',dir)) do |file|
 	require file
 end
 
-module SH
+module ShellHelpers
 	include Run #run_command, run_output, run_status, run
 	include CLILogging #logger.{debug info warn error fatal}, log_and_do
 	include ExitNow #exit_now!
@@ -30,3 +30,5 @@ module SH
 	end
 end
 
+#for the lazy
+SH=ShellHelpers

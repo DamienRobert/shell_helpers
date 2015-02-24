@@ -14,7 +14,7 @@ end
 
 autoload :FileUtils, "fileutils"
 
-module SH
+module ShellHelpers
 	#SH::Pathname is Pathname with extra features
 	#and methods from FileUtils rather than File when possible
 	#to use this module rather than ::Pathname in a module or class,
