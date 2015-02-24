@@ -7,6 +7,8 @@ authors: Damien Robert
 email: Damien.Olivier.Robert+gems@gmail.com
 homepage: https://github.com/DamienRobert/shell_helpers#readme
 
+dependencies:
+  drain: ~> 0.1
 development_dependencies:
   minitest: ~> 5.0
   rubygems-tasks: ~> 0.2
