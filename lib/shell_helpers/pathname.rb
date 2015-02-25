@@ -134,10 +134,10 @@ module ShellHelpers
 				#We need to inverse the way we call cp, since it is the only way we can
 				#mv/cp several files in a directory:
 				#    self.on_cp("file1","file2")
-				#Options: preserve noop verbose
+				#Options: preserve noop verbose force
 				[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
 					define_method :"on_#{method}" do |*files,**opts,&b|
-						FileUtils.send(method,*files,self,**opts,&b)
+						FileUtils.send(method,[*files],self,**opts,&b)
 					end
 				end
 				alias_method :on_link, :on_ln
@@ -147,8 +147,18 @@ module ShellHelpers
 		include fileutils_wrapper
 
 		module RemovalHandler
-			RemoveError = Class.new(Exception)
-			def on_rm(recursive: false, mode: :file, dereference: false, rescue_error: false, verbose: true, noop: false, force: false)
+			class PathnameError < Exception
+				#encapsulate another exception
+				attr_accessor :ex
+				def initialize(ex=nil)
+					@ex=ex
+				end
+				def to_s
+					@ex.to_s
+				end
+			end
+			RemoveError = Class.new(PathnameError)
+			def on_rm(recursive: false, mode: :file, dereference: false, rescue_error: false, verbose: true, noop: false, force: false, **others)
 				mode.to_s.match(/^recursive-(.*)$/) do |m|
 					recursive=true
 					mode=m[1].to_sym
@@ -176,9 +186,10 @@ module ShellHelpers
 				end
 			rescue => e
 				warn "Error in #{self}.#{__method__}: #{e}"
-				raise unless rescue_error
+				raise RemoveError.new(e) unless rescue_error
 			end
 
+			FSError = Class.new(PathnameError)
 			#activates magic on_rm on these methods
 			[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
 				define_method :"on_#{method}" do |*files,rescue_error: true,**opts,&b|
@@ -187,13 +198,13 @@ module ShellHelpers
 							r=on_rm(rescue_error: false, **opts) 
 							return r unless r
 						end
-						#Options: preserve noop verbose
-						fuopts=opts.select {|k,v| [:preserve,:noop,:verbose].include?(k)}
-						p *files,self,**fuopts
-						super(*files,self,**fuopts,&b)
+						fuopts=opts.reject {|k,v| [:recursive,:mode,:dereference].include?(k)}
+						super(*files,**fuopts,&b)
+					rescue RemoveError
+						raise
 					rescue => e
 						warn "Error in #{self}.#{__method__}: #{e}"
-						raise unless rescue_error
+						raise FSError.new(e) unless rescue_error
 					end
 				end
 			end
@@ -203,6 +214,7 @@ module ShellHelpers
 end
 
 =begin
+pry
 load "dr/sh.rb"
 ploum=SH::Pathname.new("ploum")
 plim=SH::Pathname.new("plim")
