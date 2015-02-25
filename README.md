@@ -23,6 +23,10 @@
   this functionality from other command parsers than methadone
   (like [gli](https://github.com/davetron5000/gli)).
 
+## Warning
+
+  For now the API is experimental and some parts are not ready to use!
+
 ## Install
 
     $ gem install shell_helpers
