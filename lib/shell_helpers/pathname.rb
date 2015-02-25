@@ -20,6 +20,10 @@ module ShellHelpers
 	#to use this module rather than ::Pathname in a module or class,
 	#simply define Pathname=SH::Pathname in an appropriate nesting level
 	class Pathname < ::Pathname
+		#Some alias defined in FileUtils
+		alias_method :mkdir_p, :mkpath
+		alias_method :rm_rf, :rmtree
+
 		module InstanceMethods
 			def hidden?
 				return self.basename.to_s[0]=="."
@@ -76,26 +80,6 @@ module ShellHelpers
 				end
 			end
 
-			def rm(recursive: false, mode: :file, verbose: true, noop: false, force: false)
-				mode.to_s.match(/^recursive-(.*)$/) do |m|
-					recursive=true
-					mode=m[1].to_sym
-				end
-				case mode
-				when :symlink
-					return unless self.symlink?
-				when :dangling_symlink
-					return unless self.symlink? && ! self.exist?
-				end
-				if recursive
-					FileUtils.rm_r(self, verbose: verbose, noop: noop, force: force)
-				else
-					FileUtils.rm(self, verbose: verbose, noop: noop, force: force)
-				end
-			rescue => e
-				warn "Error in #{self}.clobber: #{e}"
-			end
-
 			#overwrites Pathname#find
 			def find(*args,&b)
 				require 'dr/sh/utils'
@@ -135,34 +119,94 @@ module ShellHelpers
 
 		#pass FileUtils::Verbose to active verbosity by default
 		def self.fileutils_wrapper(klass=FileUtils)
-			#wrapper around FileUtils
-			#Pathname#rmdir uses Dir.rmdir, but the rmdir from FileUtils is a wrapper
-			#around Dir.rmdir that accepts extra options
-			#The same for mkdir
-			[:chdir, :rmdir, :mkdir, :chmod, :chmod_R, :chown, :chown_R, :cmp, :touch, :rm, :rm_r, :uptodate?, :cmp].each do |method|
-				define_method method do |*args,&b|
-					klass.send(method,self,*args,&b)
+			Module.new do
+				#wrapper around FileUtils
+				#For instance Pathname#rmdir uses Dir.rmdir, but the rmdir from FileUtils is a wrapper around Dir.rmdir that accepts extra options
+				[:chdir, :rmdir, :mkdir, :chmod, :chmod_R, :chown, :chown_R, :cmp, :touch, :rm, :rm_r, :uptodate?, :cmp, :cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
+					define_method method do |*args,&b|
+						klass.send(method,self,*args,&b)
+					end
 				end
-			end
-			#Some alias defined in FileUtils
-			alias_method :mkdir_p, :mkpath
-			alias_method :rm_rf, :rmtree
-			alias_method :cd, :chdir
-			alias_method :identical?, :cmp
+				#Some alias defined in FileUtils
+				alias_method :cd, :chdir
+				alias_method :identical?, :cmp
 
-			#We need to inverse the way we call cp, since it is the only way we can
-			#mv/cp several files in a directory:
-			#    self.cp("file1","file2")
-			#Options: preserve noop verbose
-			[:cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
-				define_method method do |*files,**opts,&b|
-					FileUtils.send(method,*files,self,**opts,&b)
+				#We need to inverse the way we call cp, since it is the only way we can
+				#mv/cp several files in a directory:
+				#    self.on_cp("file1","file2")
+				#Options: preserve noop verbose
+				[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
+					define_method :"on_#{method}" do |*files,**opts,&b|
+						FileUtils.send(method,*files,self,**opts,&b)
+					end
 				end
+				alias_method :on_link, :on_ln
+				alias_method :on_symlink, :on_ln_s
 			end
-			alias_method :link, :ln
-			alias_method :symlink, :ln_s
 		end
-		fileutils_wrapper
-	end
+		include fileutils_wrapper
 
+		module RemovalHandler
+			RemoveError = Class.new(Exception)
+			def on_rm(recursive: false, mode: :file, dereference: false, rescue_error: false, verbose: true, noop: false, force: false)
+				mode.to_s.match(/^recursive-(.*)$/) do |m|
+					recursive=true
+					mode=m[1].to_sym
+				end
+				mode.to_s.match(/^(.*)-force$/) do |m|
+					force=true
+					mode=m[1].to_sym
+				end
+				path=self
+				path=path.readlink if dereference && path.symlink?
+				case mode
+				when :noclobber
+					return false if path.exist? || path.symlink?
+				when :symlink
+					return false unless path.symlink?
+				when :dangling_symlink
+					return false unless path.symlink? && ! self.exist?
+				when :file
+					return false if path.directory?
+				end
+				if recursive
+					FileUtils.rm_r(path, verbose: verbose, noop: noop, force: force)
+				else
+					FileUtils.rm(path, verbose: verbose, noop: noop, force: force)
+				end
+			rescue => e
+				warn "Error in #{self}.#{__method__}: #{e}"
+				raise unless rescue_error
+			end
+
+			#activates magic on_rm on these methods
+			[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
+				define_method :"on_#{method}" do |*files,rescue_error: true,**opts,&b|
+					begin
+						if opts.key?(:mode)
+							r=on_rm(rescue_error: false, **opts) 
+							return r unless r
+						end
+						#Options: preserve noop verbose
+						fuopts=opts.select {|k,v| [:preserve,:noop,:verbose].include?(k)}
+						p *files,self,**fuopts
+						super(*files,self,**fuopts,&b)
+					rescue => e
+						warn "Error in #{self}.#{__method__}: #{e}"
+						raise unless rescue_error
+					end
+				end
+			end
+		end
+		include RemovalHandler
+	end
 end
+
+=begin
+load "dr/sh.rb"
+ploum=SH::Pathname.new("ploum")
+plim=SH::Pathname.new("plim")
+plam=SH::Pathname.new("plam")
+plim.on_cp_r(ploum, mode: :symlink)
+plim.on_cp_r(ploum, mode: :file)
+=end
