@@ -67,7 +67,7 @@ module ShellHelpers
 			end
 
 			def abs_path(base: Pathname.pwd, mode: :clean)
-				f=base+self
+				f= absolute? ? base+self : self
 				case clean
 				when :clean
 					f.cleanpath
@@ -78,6 +78,17 @@ module ShellHelpers
 				when :realdir
 					f.realdirpath
 				end
+			end
+			def rel_path(target=Pathname.pwd, base: Pathname.pwd, mode: :clean)
+				target=target.abs_path(base: base, mode: mode)
+				source=self.abs_path(base: base, mode: mode)
+				source.relative_path_from(base)
+			end
+			#orig_mode, orig_base, target_mode, target_base)
+			def convert_path(**opts)
+				orig_mode=opts[:orig_mode]||[:mode]
+				path=self
+				path=path
 			end
 
 			#overwrites Pathname#find
@@ -137,7 +148,7 @@ module ShellHelpers
 				#Options: preserve noop verbose force
 				[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
 					define_method :"on_#{method}" do |*files,**opts,&b|
-						FileUtils.send(method,[*files],self,**opts,&b)
+						FileUtils.send(method,*files,self,**opts,&b)
 					end
 				end
 				alias_method :on_link, :on_ln
@@ -146,7 +157,7 @@ module ShellHelpers
 		end
 		include fileutils_wrapper
 
-		module RemovalHandler
+		module ActionHandler
 			class PathnameError < Exception
 				#encapsulate another exception
 				attr_accessor :ex
@@ -157,19 +168,23 @@ module ShellHelpers
 					@ex.to_s
 				end
 			end
-			RemoveError = Class.new(PathnameError)
-			def on_rm(recursive: false, mode: :file, dereference: false, rescue_error: false, verbose: true, noop: false, force: false, **others)
-				mode.to_s.match(/^recursive-(.*)$/) do |m|
-					recursive=true
-					mode=m[1].to_sym
-				end
-				mode.to_s.match(/^(.*)-force$/) do |m|
-					force=true
-					mode=m[1].to_sym
-				end
-				path=self
-				path=path.readlink if dereference && path.symlink?
+
+			def dereference(mode=true)
+				return self unless mode
 				case mode
+				when :simple
+					return readlink if symlink?
+				else
+					return readlink.dereference(mode) if symlink?
+				end
+				self
+			end
+
+			protected def do_action?(mode: :all, dereference: false, **others)
+				path=self.dereference(dereference)
+				case mode
+				when :none, false
+					return false
 				when :noclobber
 					return false if path.exist? || path.symlink?
 				when :symlink
@@ -178,38 +193,67 @@ module ShellHelpers
 					return false unless path.symlink? && ! self.exist?
 				when :file
 					return false if path.directory?
+				when :dir
+					return false unless path.directory?
 				end
-				if recursive
-					FileUtils.rm_r(path, verbose: verbose, noop: noop, force: force)
+				true
+			end
+
+			RemoveError = Class.new(PathnameError)
+			def on_rm(recursive: false, mode: :all, dereference: false, rescue_error: true, **others)
+				path=self.dereference(dereference)
+				if path.do_action?(mode: mode)
+					fuopts=opts.select {|k,v| [:verbose,:noop,:force].include?(k)}
+					if recursive
+						#this is only called if both recursive=true and mode=:all or :dir
+						FileUtils.rm_r(path, **fuopts)
+					else
+						FileUtils.rm(path, **fuopts)
+					end
 				else
-					FileUtils.rm(path, verbose: verbose, noop: noop, force: force)
+					puts "\# #{__method__}: Skip #{self} [mode=#{mode}]" if others[:verbose]
 				end
 			rescue => e
-				warn "Error in #{self}.#{__method__}: #{e}"
+				warn "Error in #{path}.#{__method__}: #{e}"
 				raise RemoveError.new(e) unless rescue_error
+			end
+			def on_rm_r(**opts)
+				on_rm(recursive:true,**opts)
+			end
+			def on_rm_rf(**opts)
+				on_rm(recursive:true,force:true,**opts)
 			end
 
 			FSError = Class.new(PathnameError)
-			#activates magic on_rm on these methods
 			[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
-				define_method :"on_#{method}" do |*files,rescue_error: true,**opts,&b|
-					begin
-						if opts.key?(:mode)
-							r=on_rm(rescue_error: false, **opts) 
-							return r unless r
+				define_method :"on_#{method}" do |*files,rescue_error: true,
+					dereference: true, mode: :all, rm: nil, **opts,&b|
+					path=self.dereference(dereference)
+					if path.do_action?(mode: mode)
+						begin
+							path.on_rm(mode: rm, rescue_error: false, **opts) if rm
+							fuopts=opts.reject {|k,v| [:recursive].include?(k)}
+							FileUtils.send(method,*files,path,**fuopts,&b)
+						rescue RemoveError
+							raise unless rescue_error
+						rescue => e
+							warn "Error in #{self}.#{__method__}: #{e}"
+							raise FSError.new(e) unless rescue_error
 						end
-						fuopts=opts.reject {|k,v| [:recursive,:mode,:dereference].include?(k)}
-						super(*files,**fuopts,&b)
-					rescue RemoveError
-						raise
-					rescue => e
-						warn "Error in #{self}.#{__method__}: #{e}"
-						raise FSError.new(e) unless rescue_error
+					else
+						puts "\# #{__method__}: Skip #{path} [mode=#{mode}]" if opts[:verbose]
 					end
 				end
 			end
+			alias_method :on_link, :on_ln
+			alias_method :on_symlink, :on_ln_s
+
+			#Pathname.new("foo").squel("bar/baz")
+			#will create a symlink foo/bar/baz -> ../../bar/baz
+			def squel(target,base: self.class.pwd, action: :on_ln_s, **opts)
+			end
 		end
-		include RemovalHandler
+		include ActionHandler
 	end
 end
 
@@ -219,6 +263,7 @@ load "dr/sh.rb"
 ploum=SH::Pathname.new("ploum")
 plim=SH::Pathname.new("plim")
 plam=SH::Pathname.new("plam")
-plim.on_cp_r(ploum, mode: :symlink)
-plim.on_cp_r(ploum, mode: :file)
+plim.on_cp_r(ploum, mode: :symlink, verbose: true)
+plim.on_cp_r(ploum, mode: :file, verbose: true)
+plim.on_cp_r(ploum, mode: :file, rm: :file, verbose: true)
 =end
