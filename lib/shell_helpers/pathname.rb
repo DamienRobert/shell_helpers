@@ -24,6 +24,15 @@ module ShellHelpers
 		alias_method :mkdir_p, :mkpath
 		alias_method :rm_rf, :rmtree
 
+		#these Pathname methods explicitely call Pathname.new so do not respect
+		#our subclass :-(
+		[:+,:join,:relative_path_from].each do |m|
+			define_method m do |*args,&b|
+				self.class.new(super(*args,&b))
+			end
+		end
+		alias_method :/, :+
+
 		module InstanceMethods
 			def hidden?
 				return self.basename.to_s[0]=="."
@@ -169,13 +178,24 @@ module ShellHelpers
 				end
 			end
 
+			#follow a symlink
+			def follow
+				return self unless symlink?
+				l=readlink
+				if l.relative?
+					self.dirname+l
+				else
+					l
+				end
+			end
+
 			def dereference(mode=true)
 				return self unless mode
 				case mode
 				when :simple
-					return readlink if symlink?
+					return follow if symlink?
 				else
-					return readlink.dereference(mode) if symlink?
+					return follow.dereference(mode) if symlink?
 				end
 				self
 			end
