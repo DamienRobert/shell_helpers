@@ -59,16 +59,25 @@ module ShellHelpers
 				Pathname.new(self.to_s+args.join(join))
 			end
 
+			#loop until we get a name satisfying cond
+			def new_name(&cond)
+				loop.with_index do |_,ind|
+					n=self.class.new(yield(self,ind))
+					return n if cond.call(n)
+				end
+			end
+			#find a non existing filename
+			def nonexisting_name(&change_method)
+				new_name(Proc.new {|f| !f.exist?}, &change_method)
+			end
+
 			def backup(suffix: '.old', overwrite: true)
 				if self.exist?
 					filebk=self.append_name(suffix)
 					if filebk.exist? and !overwrite
-						num=0
-						begin
-							filebknum=filebk.append_name("%02d" % num)
-							num+=1
-						end while filebknum.exist?
-						filebk=filebknum
+						filebk=new_name do |old_name, ind|
+							old_name.append_name("%02d" % ind)
+						end
 					end
 					logger.debug "Backup #{self} -> #{filebk}" if respond_to?(:logger)
 					FileUtils.mv(self,filebk)
