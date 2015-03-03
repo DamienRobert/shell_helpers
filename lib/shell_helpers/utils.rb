@@ -113,7 +113,7 @@ module ShellHelpers
 						when Proc
 							filter.call(file,filerel,fileabs)
 						when Array
-							filter.all? do |test|
+							filter.any? do |test|
 								case test
 								when :directory? #special case
 									file.directory? && !file.symlink?

@@ -99,6 +99,7 @@ module ShellHelpers
 			def rel_path(target=Pathname.pwd, base: Pathname.pwd, mode: :clean)
 				target=target.abs_path(base: base, mode: mode)
 				source=self.abs_path(base: base, mode: mode)
+				base=base.dirname unless base.directory?
 				source.relative_path_from(base)
 			end
 			#orig_mode, orig_base, target_mode, target_base)
@@ -230,8 +231,9 @@ module ShellHelpers
 			RemoveError = Class.new(PathnameError)
 			def on_rm(recursive: false, mode: :all, dereference: false, rescue_error: true, **others)
 				path=self.dereference(dereference)
+				return nil unless path.exist?
 				if path.do_action?(mode: mode)
-					fuopts=opts.select {|k,v| [:verbose,:noop,:force].include?(k)}
+					fuopts=others.select {|k,v| [:verbose,:noop,:force].include?(k)}
 					if recursive
 						#this is only called if both recursive=true and mode=:all or :dir
 						FileUtils.rm_r(path, **fuopts)
