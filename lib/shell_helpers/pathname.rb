@@ -19,21 +19,21 @@ module ShellHelpers
 	#and methods from FileUtils rather than File when possible
 	#to use this module rather than ::Pathname in a module or class,
 	#simply define Pathname=SH::Pathname in an appropriate nesting level
-	class Pathname < ::Pathname
-		#Some alias defined in FileUtils
-		alias_method :mkdir_p, :mkpath
-		alias_method :rm_rf, :rmtree
-
-		#these Pathname methods explicitely call Pathname.new so do not respect
-		#our subclass :-(
-		[:+,:join,:relative_path_from].each do |m|
-			define_method m do |*args,&b|
-				self.class.new(super(*args,&b))
-			end
-		end
-		alias_method :/, :+
-
+	module PathnameExt
 		module InstanceMethods
+			#Some alias defined in FileUtils
+			alias_method :mkdir_p, :mkpath
+			alias_method :rm_rf, :rmtree
+
+			#these Pathname methods explicitely call Pathname.new so do not respect
+			#our subclass :-(
+			[:+,:join,:relative_path_from].each do |m|
+				define_method m do |*args,&b|
+					self.class.new(super(*args,&b))
+				end
+			end
+			alias_method :/, :+
+
 			def hidden?
 				return self.basename.to_s[0]=="."
 			end
@@ -166,7 +166,7 @@ module ShellHelpers
 				#Options: preserve noop verbose force
 				[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
 					define_method :"on_#{method}" do |*files,**opts,&b|
-						FileUtils.send(method,*files,self,**opts,&b)
+						klass.send(method,*files,self,**opts,&b)
 					end
 				end
 				alias_method :on_link, :on_ln
@@ -175,6 +175,8 @@ module ShellHelpers
 		end
 		include fileutils_wrapper
 
+		#TODO: allow to use another class than FileUtils in this module, like
+		#we do above
 		module ActionHandler
 			class PathnameError < Exception
 				#encapsulate another exception
@@ -284,6 +286,16 @@ module ShellHelpers
 			end
 		end
 		include ActionHandler
+	end
+	#to affect the original ::Pathname, just include PathnameExt there
+	class Pathname < ::Pathname
+		include PathnameExt
+	end
+	class Pathname::Verbose
+		include InstanceMethods
+		extend ClassMethods
+		Pathname.fileutils_wrapper(FileUtils::Verbose)
+		#TODO include ActionHandler
 	end
 end
 
