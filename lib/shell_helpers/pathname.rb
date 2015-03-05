@@ -21,10 +21,6 @@ module ShellHelpers
 	#simply define Pathname=SH::Pathname in an appropriate nesting level
 	module PathnameExt
 		module InstanceMethods
-			#Some alias defined in FileUtils
-			alias_method :mkdir_p, :mkpath
-			alias_method :rm_rf, :rmtree
-
 			#these Pathname methods explicitely call Pathname.new so do not respect
 			#our subclass :-(
 			[:+,:join,:relative_path_from].each do |m|
@@ -289,12 +285,15 @@ module ShellHelpers
 	end
 	#to affect the original ::Pathname, just include PathnameExt there
 	class Pathname < ::Pathname
+		#Some alias defined in FileUtils
+		alias_method :mkdir_p, :mkpath
+		alias_method :rm_rf, :rmtree
 		include PathnameExt
 	end
 	class Pathname::Verbose
-		include InstanceMethods
-		extend ClassMethods
-		Pathname.fileutils_wrapper(FileUtils::Verbose)
+		include Pathname::InstanceMethods
+		extend Pathname::ClassMethods
+		PathnameExt.fileutils_wrapper(FileUtils::Verbose)
 		#TODO include ActionHandler
 	end
 end
