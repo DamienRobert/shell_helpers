@@ -65,7 +65,7 @@ module ShellHelpers
 		#But in split hash mode, we put the keys in uppercase (to prevent collisions)
 		def export_parse(hash,s)
 			r=""
-			args=SimpleParser.parse_string(s)
+			args=DR::SimpleParser.parse_string(s)
 			args[:values].each do |k,v|
 				name=k
 				if !v
