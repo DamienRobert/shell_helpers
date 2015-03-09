@@ -20,8 +20,40 @@ module ShellHelpers
 	#to use this module rather than ::Pathname in a module or class,
 	#simply define Pathname=SH::Pathname in an appropriate nesting level
 	module PathnameExt
-		module InstanceMethods
-			#these Pathname methods explicitely call Pathname.new so do not respect
+		class Base < ::Pathname
+			#Some alias defined in FileUtils
+			alias_method :mkdir_p, :mkpath
+			alias_method :rm_rf, :rmtree
+
+			class <<self
+				def home
+					return Pathname.new(Dir.home)
+				end
+				def hometilde
+					return Pathname.new('~')
+				end
+				def slash
+					return Pathname.new("/")
+				end
+				#differ from Pathname.pwd in that this returns a relative path
+				def current
+					return Pathname.new(".")
+				end
+				def null
+					return Pathname.new('/dev/null')
+				end
+
+				#Pathname / 'usr'
+				def /(path)
+					new(path)
+				end
+				#Pathname['/usr']
+				def [](path)
+					new(path)
+				end
+			end
+
+			#these Pathname methods explicitly call Pathname.new so do not respect
 			#our subclass :-(
 			[:+,:join,:relative_path_from].each do |m|
 				define_method m do |*args,&b|
@@ -111,68 +143,46 @@ module ShellHelpers
 				SH::ShellUtils.find(self,*args,&b)
 			end
 		end
-		include InstanceMethods
 
-		module ClassMethods
-			def home
-				return Pathname.new(Dir.home)
-			end
-			def hometilde
-				return Pathname.new('~')
-			end
-			def slash
-				return Pathname.new("/")
-			end
-			#differ from Pathname.pwd in that this returns a relative path
-			def current
-				return Pathname.new(".")
-			end
-			def null
-				return Pathname.new('/dev/null')
-			end
-
-			#Pathname / 'usr'
-			def /(path)
-				new(path)
-			end
-			#Pathname['/usr']
-			def [](path)
-				new(path)
-			end
-		end
-		extend ClassMethods
-
-		#pass FileUtils::Verbose to active verbosity by default
-		def self.fileutils_wrapper(klass=FileUtils)
-			Module.new do
-				#wrapper around FileUtils
-				#For instance Pathname#rmdir uses Dir.rmdir, but the rmdir from FileUtils is a wrapper around Dir.rmdir that accepts extra options
-				[:chdir, :rmdir, :mkdir, :chmod, :chmod_R, :chown, :chown_R, :cmp, :touch, :rm, :rm_r, :uptodate?, :cmp, :cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
-					define_method method do |*args,&b|
-						klass.send(method,self,*args,&b)
-					end
+		module FileUtilsWrapper
+			class <<self
+				#pass FileUtils::Verbose to active verbosity by default
+				attr_accessor :fu_class
+				def included(base)
+					base.extend(self)
 				end
-				#Some alias defined in FileUtils
-				alias_method :cd, :chdir
-				alias_method :identical?, :cmp
-
-				#We need to inverse the way we call cp, since it is the only way we can
-				#mv/cp several files in a directory:
-				#    self.on_cp("file1","file2")
-				#Options: preserve noop verbose force
-				[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
-					define_method :"on_#{method}" do |*files,**opts,&b|
-						klass.send(method,*files,self,**opts,&b)
-					end
-				end
-				alias_method :on_link, :on_ln
-				alias_method :on_symlink, :on_ln_s
 			end
-		end
-		include fileutils_wrapper
+			@fu_class||=::FileUtils
+			#wrapper around FileUtils
+			#For instance Pathname#rmdir uses Dir.rmdir, but the rmdir from FileUtils is a wrapper around Dir.rmdir that accepts extra options
+			[:chdir, :rmdir, :mkdir, :chmod, :chmod_R, :chown, :chown_R, :cmp, :touch, :rm, :rm_r, :uptodate?, :cmp, :cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
+				define_method method do |*args,&b|
+					self.class.fu_class.public_send(method,self,*args,&b)
+				end
+			end
+			#Some alias defined in FileUtils
+			alias_method :cd, :chdir
+			alias_method :identical?, :cmp
 
-		#TODO: allow to use another class than FileUtils in this module, like
-		#we do above
+			#We need to inverse the way we call cp, since it is the only way we can
+			#mv/cp several files in a directory:
+			#    self.on_cp("file1","file2")
+			#Options: preserve noop verbose force
+			#Note: if ActionHandler is included, this will overwrite these
+			#methods
+			[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
+				define_method :"on_#{method}" do |*files,**opts,&b|
+					self.class.fu_class.send(method,*files,self,**opts,&b)
+				end
+			end
+			alias_method :on_link, :on_ln
+			alias_method :on_symlink, :on_ln_s
+		end
+		include FileUtilsWrapper
+		def self.included(base)
+			base.extend(self)
+		end
+
 		module ActionHandler
 			class PathnameError < Exception
 				#encapsulate another exception
@@ -234,9 +244,9 @@ module ShellHelpers
 					fuopts=others.select {|k,v| [:verbose,:noop,:force].include?(k)}
 					if recursive
 						#this is only called if both recursive=true and mode=:all or :dir
-						FileUtils.rm_r(path, **fuopts)
+						self.class.fu_class.rm_r(path, **fuopts)
 					else
-						FileUtils.rm(path, **fuopts)
+						self.class.fu_class.rm(path, **fuopts)
 					end
 				else
 					puts "\# #{__method__}: Skip #{self} [mode=#{mode}]" if others[:verbose]
@@ -261,7 +271,7 @@ module ShellHelpers
 						begin
 							path.on_rm(mode: rm, rescue_error: false, **opts) if rm
 							fuopts=opts.reject {|k,v| [:recursive].include?(k)}
-							FileUtils.send(method,*files,path,**fuopts,&b)
+							self.class.fu_class.send(method,*files,path,**fuopts,&b)
 						rescue RemoveError
 							raise unless rescue_error
 						rescue => e
@@ -283,18 +293,13 @@ module ShellHelpers
 		end
 		include ActionHandler
 	end
+
 	#to affect the original ::Pathname, just include PathnameExt there
-	class Pathname < ::Pathname
-		#Some alias defined in FileUtils
-		alias_method :mkdir_p, :mkpath
-		alias_method :rm_rf, :rmtree
+	class Pathname < PathnameExt::Base
 		include PathnameExt
 	end
-	class Pathname::Verbose
-		include Pathname::InstanceMethods
-		extend Pathname::ClassMethods
-		PathnameExt.fileutils_wrapper(FileUtils::Verbose)
-		#TODO include ActionHandler
+	class Pathname::Verbose < Pathname
+		@fu_class=FileUtils::Verbose
 	end
 end
 
