@@ -111,7 +111,7 @@ module ShellHelpers
 				end
 			end
 
-			def abs_path(base: Pathname.pwd, mode: :clean)
+			def abs_path(base: self.class.pwd, mode: :clean)
 				f= absolute? ? base+self : self
 				case clean
 				when :clean
@@ -127,13 +127,13 @@ module ShellHelpers
 				end
 			end
 
-			def rel_path(base: Pathname.pwd, checkdir: false)
+			def rel_path(base: self.class.pwd, checkdir: false)
 				return self if relative?
 				base=base.dirname unless base.directory? if checkdir
 				relative_path_from(base)
 			end
 
-			def convert_path(base: Pathname.pwd, mode: :clean)
+			def convert_path(base: self.class.pwd, mode: :clean)
 				case mode
 				when :clean
 					cleanpath
@@ -158,7 +158,7 @@ module ShellHelpers
 
 			#note: there is no real sense to use mode: :rel here, but we don't
 			#prevent it
-			def rel_path_from(target=Pathname.pwd, base: Pathname.pwd, mode: :abs_clean, **opts)
+			def rel_path_from(target=self.class.pwd, base: self.class.pwd, mode: :abs_clean, **opts)
 				sbase=opts[:source_base]||base
 				smode=opts[:source_mode]||mode
 				sbase=opts[:target_base]||base
@@ -171,7 +171,7 @@ module ShellHelpers
 			#overwrites Pathname#find
 			def find(*args,&b)
 				require 'dr/sh/utils'
-				SH::ShellUtils.find(self,*args,&b)
+				ShellUtils.find(self,*args,&b)
 			end
 		end
 
@@ -215,6 +215,7 @@ module ShellHelpers
 		include FileUtilsWrapper
 
 		module ActionHandler
+			extend FUClass
 			class PathnameError < Exception
 				#encapsulate another exception
 				attr_accessor :ex
@@ -319,7 +320,25 @@ module ShellHelpers
 
 			#Pathname.new("foo").squel("bar/baz")
 			#will create a symlink foo/bar/baz -> ../../bar/baz
-			def squel(target,base: self.class.pwd, action: :on_ln_s, **opts)
+			def squel(target,base: self.class.pwd, action: :on_ln_s, mkpath: true, **opts)
+				base_rel=base.rel_path_from(target, base: base)
+				out=self+base_rel
+				out.dirname.mkpath if mkpath
+				rel_target=out.rel_path_from(target, base: base)
+				yield(out,rel_target, base: base, target: target, orig: self) if block_given?
+				self.public_send(action, rel_target,**opts) if action
+			end
+
+			def squel_dir(target, base: self.class.pwd,**opts)
+				squel(target,base:base, action:nil, mkpath:false) do |out,squel_rel_target|
+					target.find do |abs,rel|
+						out=self+rel_target+rel
+						out.mkpath if mkpath and abs.directory?
+						rel_target=squel_rel_target+rel
+						yield(out,rel_target, base: base, target: target, orig: self) if block_given?
+						self.public_send(action, rel_target,**opts) if action
+					end
+				end
 			end
 		end
 		include ActionHandler
