@@ -144,15 +144,18 @@ module ShellHelpers
 			end
 		end
 
-		module FileUtilsWrapper
-			class <<self
-				#pass FileUtils::Verbose to active verbosity by default
-				attr_accessor :fu_class
-				def included(base)
-					base.extend(self)
-				end
+		module FUClass
+			attr_writer :fu_class
+			def fu_class
+				@fu_class||=::FileUtils
 			end
-			@fu_class||=::FileUtils
+		end
+		def self.included(base)
+			base.extend(FUClass)
+		end
+
+		module FileUtilsWrapper
+			extend FUClass
 			#wrapper around FileUtils
 			#For instance Pathname#rmdir uses Dir.rmdir, but the rmdir from FileUtils is a wrapper around Dir.rmdir that accepts extra options
 			[:chdir, :rmdir, :mkdir, :chmod, :chmod_R, :chown, :chown_R, :cmp, :touch, :rm, :rm_r, :uptodate?, :cmp, :cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
@@ -179,9 +182,6 @@ module ShellHelpers
 			alias_method :on_symlink, :on_ln_s
 		end
 		include FileUtilsWrapper
-		def self.included(base)
-			base.extend(self)
-		end
 
 		module ActionHandler
 			class PathnameError < Exception
@@ -298,8 +298,16 @@ module ShellHelpers
 	class Pathname < PathnameExt::Base
 		include PathnameExt
 	end
+	#an alternative to use Pathname::Verbose explicitly is to use
+	#Pathname.fu_class=FileUtils::Verbose
 	class Pathname::Verbose < Pathname
 		@fu_class=FileUtils::Verbose
+	end
+	class Pathname::NoWrite < Pathname
+		@fu_class=FileUtils::NoWrite
+	end
+	class Pathname::DryRun < Pathname
+		@fu_class=FileUtils::DryRun
 	end
 end
 
