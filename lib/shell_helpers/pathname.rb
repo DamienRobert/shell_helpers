@@ -122,19 +122,50 @@ module ShellHelpers
 					f.realpath
 				when :realdir
 					f.realdirpath
+				else
+					f
 				end
 			end
-			def rel_path(target=Pathname.pwd, base: Pathname.pwd, mode: :clean)
-				target=target.abs_path(base: base, mode: mode)
-				source=self.abs_path(base: base, mode: mode)
-				base=base.dirname unless base.directory?
-				source.relative_path_from(base)
+
+			def rel_path(base: Pathname.pwd, checkdir: false)
+				return self if relative?
+				base=base.dirname unless base.directory? if checkdir
+				relative_path_from(base)
 			end
-			#orig_mode, orig_base, target_mode, target_base)
-			def convert_path(**opts)
-				orig_mode=opts[:orig_mode]||[:mode]
-				path=self
-				path=path
+
+			def convert_path(base: Pathname.pwd, mode: :clean)
+				case mode
+				when :clean
+					cleanpath
+				when :clean_sym
+					cleanpath(consider_symlink: true)
+				when :relative,:rel
+					rel_path(base: base)
+				when :absolute,:abs
+					abs_path(base: base, mode: :abs)
+				when :abs_clean
+					abs_path(base: base, mode: :clean)
+				when :abs_cleansym
+					abs_path(base: base, mode: :cleansym)
+				when :abs_real
+					abs_path(base: base, mode: :real)
+				when :abs_realdir
+					abs_path(base: base, mode: :realdir)
+				else
+					self
+				end
+			end
+
+			#note: there is no real sense to use mode: :rel here, but we don't
+			#prevent it
+			def rel_path_from(target=Pathname.pwd, base: Pathname.pwd, mode: :abs_clean, **opts)
+				sbase=opts[:source_base]||base
+				smode=opts[:source_mode]||mode
+				sbase=opts[:target_base]||base
+				smode=opts[:target_mode]||mode
+				source=self.convert_path(base: sbase, mode: smode)
+				target=target.convert_path(base: tbase, mode: tmode)
+				source.relative_path(base: base, checkdir: opts[:checkdir])
 			end
 
 			#overwrites Pathname#find
