@@ -99,19 +99,18 @@ module ShellHelpers
 		@orig_stderr=$stderr
 
 		#An improved find from Find::find that takes in the block the absolute and relative name of the files (+the directory where the relative file is from), and has filter options
-		def find(*paths, filter: nil, follow_symlink: false, depth: nil)
+		def find(*paths, filter: nil, follow_symlink: false, depth: nil, chdir: false)
 			block_given? or return enum_for(__method__, *paths, filter: filter, follow_symlink: follow_symlink, depth: depth)
 
 			paths.collect!{|d| raise Errno::ENOENT unless File.exist?(d); Pathname.new(d.dup)}
 			paths.collect!{|d| [ d, Pathname.new('.'), d ]}
 			while filedata = paths.shift
-				file, filerel, fileabs = *filedata
+				file, filerel, base = *filedata
 				catch(:prune) do #use throw(:prune) to skip a path
-					Dir.chdir(fileabs) do
-						#if the filter is true, we don't yield the file
-						case filter
+					#if the filter is true, we don't yield the file
+					if case filter
 						when Proc
-							filter.call(file,filerel,fileabs)
+							filter.call(file,filerel,base)
 						when Array
 							filter.any? do |test|
 								case test
@@ -121,14 +120,21 @@ module ShellHelpers
 									file.send(test)
 								end
 							end
-						end or yield file.dup.taint, filerel.dup.taint, fileabs.dup.taint
-						if file.directory? and (depth.nil? or filerel.each_filename.size <= depth) then
-							next if !follow_symlink && file.symlink?
-							file.children(false).sort.reverse_each do |f|
-								fj = file + f
-								f = filerel + f
-								paths.unshift [fj.untaint,f.untaint,fileabs]
+						end then
+						if chdir
+							Dir.chdir(base) do
+								yield file.dup.taint, filerel.dup.taint, base.dup.taint
 							end
+						else
+							yield file.dup.taint, filerel.dup.taint, base.dup.taint
+						end
+					end
+					if file.directory? and (depth.nil? or filerel.each_filename.size <= depth) then
+						next if !follow_symlink && file.symlink?
+						file.children(false).sort.reverse_each do |f|
+							fj = file + f
+							f = filerel + f
+							paths.unshift [fj.untaint,f.untaint,base]
 						end
 					end
 				end
