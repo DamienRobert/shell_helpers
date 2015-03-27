@@ -178,6 +178,70 @@ module ShellHelpers
 				require 'dr/sh/utils'
 				ShellUtils.find(self,*args,&b)
 			end
+
+			#follow a symlink
+			def follow
+				return self unless symlink?
+				l=readlink
+				if l.relative?
+					self.dirname+l
+				else
+					l
+				end
+			end
+
+			def dereference(mode=true)
+				return self unless mode
+				case mode
+				when :simple
+					return follow if symlink?
+				else
+					return follow.dereference(mode) if symlink?
+				end
+				self
+			end
+
+			def bad_symlink?
+				symlink? and !dereference.exist?
+			end
+
+			def hidden?
+				#without abs_path '.' is considered as hidden
+				abs_path.basename.to_s[0]=="."
+			end
+
+			#remove all empty directories inside self
+			#this includes directories which only include empty directories
+			def rm_empty_dirs(rm:true)
+				r=[]
+				if directory?
+					find(depth:true) do |file|
+						if file.directory? and file.children(false).empty?
+							r<<file
+							file.rmdir if rm
+						end
+					end
+				end
+				r
+			end
+
+			def rm_bad_symlinks(rm:false,hidden:false)
+				r=[]
+				if directory?
+					filter=if hidden
+							->(x,_) {x.hidden?}
+						else
+							->(*x) {false}
+						end
+					find(filter:filter) do |file|
+						if file.bad_symlink?
+							r<<file
+							file.rm if rm
+						end
+					end
+				end
+				r
+			end
 		end
 
 		module FUClass
@@ -230,28 +294,6 @@ module ShellHelpers
 				def to_s
 					@ex.to_s
 				end
-			end
-
-			#follow a symlink
-			def follow
-				return self unless symlink?
-				l=readlink
-				if l.relative?
-					self.dirname+l
-				else
-					l
-				end
-			end
-
-			def dereference(mode=true)
-				return self unless mode
-				case mode
-				when :simple
-					return follow if symlink?
-				else
-					return follow.dereference(mode) if symlink?
-				end
-				self
 			end
 
 			protected def do_action?(mode: :all, dereference: false, **others)
@@ -343,6 +385,18 @@ module ShellHelpers
 						yield(out,rel_path, target: file, squel_target: target, orig: self, **opts) if block_given?
 					end
 				end
+			end
+			#Example: symlink all files in a directory into another, while
+			#preserving the structure
+			#Pathname.new("foo").squel_dir("bar',action: :on_ln_s)
+			#Remove these symlinks:
+			#SH::Pathname.new("foo").squel_dir("bar") {|o,t| o.on_rm(mode: :symlink)}
+
+			#add the relative path to target in the symlink
+			#Pathname.new("foo/bar").rel_ln_s(Pathname.new("baz/toto"))
+			#makes a symlink foo/bar -> ../baz/toto
+			def rel_ln_s(target)
+				on_ln_s(rel_path_to(target))
 			end
 		end
 		include ActionHandler
