@@ -99,48 +99,61 @@ module ShellHelpers
 		@orig_stderr=$stderr
 
 		#An improved find from Find::find that takes in the block the absolute and relative name of the files (+the directory where the relative file is from), and has filter options
-		def find(*base, filter: nil, follow_symlink: false, depth: false, max_depth: nil, chdir: false)
-			block_given? or return enum_for(__method__, *base, filter: filter, follow_symlink: follow_symlink, depth: depth, max_depth: max_depth, chdir: chdir)
+		def find(*bases, filter: nil, follow_symlink: false, depth: false, max_depth: nil, chdir: false)
+			block_given? or return enum_for(__method__, *bases, filter: filter, follow_symlink: follow_symlink, depth: depth, max_depth: max_depth, chdir: chdir)
 
-			base.collect!{|d| raise Errno::ENOENT unless File.exist?(d); d.dup}.each do |base|
+
+
+			bases.collect!{|d| raise Errno::ENOENT unless File.exist?(d); d.dup}.each do |base|
 				klass=base.is_a?(::Pathname) ? base.class : ::Pathname
 				base=klass.new(base)
-				paths=[[base, klass.new('.')]]
-				while filedata = paths.shift
-					file, filerel = *filedata
-					catch(:prune) do #use throw(:prune) to skip a path
-						#if the filter is true, we don't yield the file
-						if ! case filter
-							when Proc
-								filter.call(file,filerel,base)
-							when Array
-								filter.any? do |test|
-									case test
-									when :directory? #special case
-										file.directory? && !file.symlink?
-									else
-										file.send(test)
-									end
-								end
-							end then
-							if chdir
-								Dir.chdir(base) do
-									yield file.dup.taint, filerel.dup.taint, base.dup.taint
-								end
-							else
-								yield file.dup.taint, filerel.dup.taint, base.dup.taint
-							end
+
+				yield_files=lambda do |*files|
+					files.map! {|f| f.dup.taint}
+					if chdir
+						Dir.chdir(base) do
+							yield *files, base
 						end
-						if file.directory? and (max_depth.nil? or filerel.each_filename.size <= max_depth)
-							next if !follow_symlink && file.symlink?
-							file.children(false).sort.reverse_each do |f|
-								fj = file + f
-								f = filerel + f
-								paths.unshift [fj.untaint,f.untaint,base]
+					else
+						yield *files, base
+					end
+				end
+
+				test_filter=lambda do |*files|
+					case filter
+					when Proc
+						filter.call(*files)
+					when Array
+						file=files.first
+						filter.any? do |test|
+							case test
+							when :directory? #special case
+								file.directory? && !file.symlink?
+							else
+								file.send(test)
 							end
 						end
 					end
 				end
+
+				do_find=lambda do |*files|
+					file,filerel=*files
+					catch(:prune) do #use throw(:prune) to skip a path
+						unless test_filter.(*files)
+							yield_files.(*files) unless depth
+							if file.directory? and (max_depth.nil? or filerel.each_filename.size <= max_depth)
+								next if !follow_symlink && file.symlink?
+								file.children(false).sort.reverse_each do |f|
+									fj = file + f
+									f = filerel + f
+									do_find.(fj.untaint,f.untaint)
+								end
+							end
+							yield_files.(*files) if depth
+						end
+					end
+				end
+				do_find.call(base, klass.new('.'))
 			end
 		end
 
