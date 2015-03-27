@@ -112,7 +112,7 @@ module ShellHelpers
 			end
 
 			def abs_path(base: self.class.pwd, mode: :clean)
-				f= absolute? ? base+self : self
+				f= absolute? ? self : base+self
 				case mode
 				when :clean
 					f.cleanpath
@@ -128,19 +128,20 @@ module ShellHelpers
 			end
 
 			def rel_path(base: self.class.pwd, checkdir: false)
-				return self if relative?
 				base=base.dirname unless base.directory? if checkdir
 				relative_path_from(base)
 			end
 
-			def convert_path(base: self.class.pwd, mode: :clean)
+			def convert_path(base: self.class.pwd, mode: :clean, checkdir: false)
 				case mode
 				when :clean
 					cleanpath
 				when :clean_sym
 					cleanpath(consider_symlink: true)
+				when :rel
+					rel_path(base: base, checkdir: checkdir)
 				when :relative,:rel
-					rel_path(base: base)
+					rel_path(base: base, checkdir: checkdir) unless self.relative?
 				when :absolute,:abs
 					abs_path(base: base, mode: :abs)
 				when :abs_clean
@@ -156,16 +157,19 @@ module ShellHelpers
 				end
 			end
 
+			#path from self to target (warning: we always assume that we are one
+			#level up self, except if inside is true)
 			#note: there is no real sense to use mode: :rel here, but we don't
 			#prevent it
-			def rel_path_from(target=self.class.pwd, base: self.class.pwd, mode: :abs_clean, **opts)
+			def rel_path_to(target=self.class.pwd, base: self.class.pwd, mode: :abs_clean, inside: false, **opts)
 				sbase=opts[:source_base]||base
 				smode=opts[:source_mode]||mode
 				tbase=opts[:target_base]||base
 				tmode=opts[:target_mode]||mode
 				source=self.convert_path(base: sbase, mode: smode)
 				target=target.convert_path(base: tbase, mode: tmode)
-				source.rel_path(base: base, checkdir: opts[:checkdir])
+				from=inside ? source : source.dirname
+				target.relative_path_from(from)
 			end
 
 			#overwrites Pathname#find
@@ -321,27 +325,25 @@ module ShellHelpers
 
 			#Pathname.new("foo").squel("bar/baz", action: :on_ln_s)
 			#will create a symlink foo/bar/baz -> ../../bar/baz
-			def squel(target, action: nil, mkpath: true, **opts)
+			def squel(target, base: self.class.pwd, **opts)
 				target=self.class.new(target)
-				out=self+self.rel_path_from(target, **opts)
-				out.dirname.mkpath if mkpath
-				rel_path=out.rel_path_from(target, **opts)
+				out=self+base.rel_path_to(target, inside: true)
+				out.dirname.mkpath if opts[:mkpath]
+				rel_path=out.rel_path_to(target, **opts)
 				#rel_path is the path from out to target
 				yield(out,rel_path, target: target, orig: self, **opts) if block_given?
-				out.public_send(action, rel_path,**opts) if action
+				out.public_send(action, rel_path,**opts) if opts[:action]
 			end
 
-			def squel_dir(target, mkpath: true, **opts)
+			def squel_dir(target, **opts)
 				target=self.class.new(target)
-				squel(target,action:nil,mkpath: :mkpath,**opts) do |target_out,target_rel_path|
-					require 'pry'
-					binding.pry
+				squel(target,**opts) do |target_out,target_rel_path|
 					target.find do |file,rel|
 						out=target_out+rel
-						out.mkpath if mkpath and file.directory?
+						out.mkpath if opts[:mkpath] and file.directory?
 						rel_path=target_rel_path+rel
 						yield(out,rel_path, target: file, squel_target: target, orig: self, **opts) if block_given?
-						out.public_send(action, rel_path,**opts) if action and !abs.directory?
+						out.public_send(action, rel_path,**opts) if opts[:action] and !abs.directory?
 					end
 				end
 			end
