@@ -312,7 +312,7 @@ module ShellHelpers
 						rescue RemoveError
 							raise unless rescue_error
 						rescue => e
-							warn "Error in #{self}.#{__method__}: #{e}"
+							warn "Error in #{self}.#{__method__}(#{files}): #{e}"
 							raise FSError.new(e) unless rescue_error
 						end
 					else
@@ -325,25 +325,23 @@ module ShellHelpers
 
 			#Pathname.new("foo").squel("bar/baz", action: :on_ln_s)
 			#will create a symlink foo/bar/baz -> ../../bar/baz
-			def squel(target, base: self.class.pwd, **opts)
+			def squel(target, base: self.class.pwd, action: nil, rel_path_opts: {}, mkpath: false, **opts)
 				target=self.class.new(target)
 				out=self+base.rel_path_to(target, inside: true)
-				out.dirname.mkpath if opts[:mkpath]
-				rel_path=out.rel_path_to(target, **opts)
+				out.dirname.mkpath if mkpath
+				rel_path=out.rel_path_to(target, **rel_path_opts)
 				#rel_path is the path from out to target
+				out.public_send(action, rel_path,**opts) if action
 				yield(out,rel_path, target: target, orig: self, **opts) if block_given?
-				out.public_send(action, rel_path,**opts) if opts[:action]
 			end
 
-			def squel_dir(target, **opts)
+			def squel_dir(target, action: nil, **opts)
 				target=self.class.new(target)
-				squel(target,**opts) do |target_out,target_rel_path|
-					target.find do |file,rel|
-						out=target_out+rel
-						out.mkpath if opts[:mkpath] and file.directory?
-						rel_path=target_rel_path+rel
+				opts[:mkpath]=true if action
+				target.find do |file|
+					squel(file,**opts) do |out,rel_path|
+						out.public_send(action, rel_path,**opts) if action and !file.directory?
 						yield(out,rel_path, target: file, squel_target: target, orig: self, **opts) if block_given?
-						out.public_send(action, rel_path,**opts) if opts[:action] and !abs.directory?
 					end
 				end
 			end
