@@ -99,8 +99,8 @@ module ShellHelpers
 		@orig_stderr=$stderr
 
 		#An improved find from Find::find that takes in the block the absolute and relative name of the files (+the directory where the relative file is from), and has filter options
-		def find(*base, filter: nil, follow_symlink: false, depth: nil, chdir: false)
-			block_given? or return enum_for(__method__, *base, filter: filter, follow_symlink: follow_symlink, depth: depth)
+		def find(*base, filter: nil, follow_symlink: false, depth: false, max_depth: nil, chdir: false)
+			block_given? or return enum_for(__method__, *base, filter: filter, follow_symlink: follow_symlink, depth: depth, max_depth: max_depth, chdir: chdir)
 
 			base.collect!{|d| raise Errno::ENOENT unless File.exist?(d); d.dup}.each do |base|
 				klass=base.is_a?(::Pathname) ? base.class : ::Pathname
@@ -131,7 +131,7 @@ module ShellHelpers
 								yield file.dup.taint, filerel.dup.taint, base.dup.taint
 							end
 						end
-						if file.directory? and (depth.nil? or filerel.each_filename.size <= depth)
+						if file.directory? and (max_depth.nil? or filerel.each_filename.size <= max_depth)
 							next if !follow_symlink && file.symlink?
 							file.children(false).sort.reverse_each do |f|
 								fj = file + f
