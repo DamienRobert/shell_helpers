@@ -206,7 +206,7 @@ module ShellHelpers
 		def sh!(*args,failure_msg: nil,**opts, &block)
 			on_failure=Proc.new do |*blockargs|
 				process_status=blockargs.last
-				raise DR::FailedCommandError.new(process_status.exitstatus,command_name(args),failure_msg: failure_msg)
+				raise FailedCommandError.new(process_status.exitstatus,command_name(args),failure_msg: failure_msg)
 			end
 			sh(*args,**opts,on_failure: on_failure,&block)
 		end
