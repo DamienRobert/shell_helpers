@@ -7,7 +7,8 @@ opts = Slop.parse(ARGV) do |o|
 	o.bool "-v", "--verbose", "verbose"
 	o.bool "-t", "--test", "test"
 	o.symbol "-m", "--mode", "Conversion mode", default: :rel
-	o.symbol "--rm", "rm options", default: :false
+	o.symbol "--rm", "rm options", default: :noclobber
+	o.bool "-L", "--dereference", "dereference dest"
 	o.bool "-f", "--force", "force remove"
 	o.on '--help' do
 		puts o
@@ -39,5 +40,5 @@ args.each do |f|
 	t=dest.directory? ? dest+f.basename : dest
 	t=f.rel_path_to(t, mode: opts[:mode])
 	puts "#{f} -> #{t}" if opts[:verbose]
-	dest.on_mv(f, mode: opts[:rm]) and f.on_ln_s(t)
+	dest.on_mv(f, mode: opts[:rm], verbose: opts[:verbose]) and f.on_ln_s(t, verbose: opts[:verbose])
 end
