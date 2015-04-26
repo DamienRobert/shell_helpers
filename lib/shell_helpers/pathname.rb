@@ -140,7 +140,7 @@ module ShellHelpers
 					cleanpath(consider_symlink: true)
 				when :rel
 					rel_path(base: base, checkdir: checkdir)
-				when :relative,:rel
+				when :relative
 					rel_path(base: base, checkdir: checkdir) unless self.relative?
 				when :absolute,:abs
 					abs_path(base: base, mode: :abs)
