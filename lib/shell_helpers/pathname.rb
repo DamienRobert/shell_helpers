@@ -276,7 +276,7 @@ module ShellHelpers
 			#Options: preserve noop verbose force
 			#Note: if ActionHandler is included, this will overwrite these
 			#methods
-			[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
+			[:cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
 				define_method :"on_#{method}" do |*files,**opts,&b|
 					self.class.fu_class.send(method,*files,self,**opts,&b)
 				end
@@ -345,7 +345,7 @@ module ShellHelpers
 			end
 
 			FSError = Class.new(PathnameError)
-			[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
+			[:cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
 				define_method :"on_#{method}" do |*files, rescue_error: true,
 					dereference: false, mode: :all, rm: nil, **opts,&b|
 					#FileUtils.{cp,mv,ln_s} dereference a symlink if it points to a
