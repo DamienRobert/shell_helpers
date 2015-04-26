@@ -1,19 +1,27 @@
 require 'slop'
 
-module ShellHelpers
-	module Slop
-		include ::Slop
-		Options=::Slop::Options
-		Parser=::Slop::Parser
-		class SymbolOption < Option
-			def call(value)
-				value.to_sym
-			end
+module Slop
+	class SymbolOption < Option
+		def call(value)
+			value.to_sym
 		end
-		class PathOption < Option
-			def call(value)
-				DR::Pathname.new(value)
+	end
+
+	class PathOption < Option
+		def call(value)
+			ShellHelpers::Pathname.new(value)
+		end
+		def finish(opts)
+			if cmd[:verbose] and cmd[:test]
+				pathname=ShellHelpers::Pathname::DryRun
+			elsif cmd[:verbose] and !cmd[:test]
+				pathname=ShellHelpers::Pathname::Verbose
+			elsif cmd[:test]
+				pathname=ShellHelpers::Pathname::NoWrite
+			else
+				pathname=ShellHelpers::Pathname
 			end
+			self.value=pathname.new(value)
 		end
 	end
 end

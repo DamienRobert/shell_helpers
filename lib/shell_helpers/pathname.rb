@@ -395,6 +395,7 @@ module ShellHelpers
 			#add the relative path to target in the symlink
 			#Pathname.new("foo/bar").rel_ln_s(Pathname.new("baz/toto"))
 			#makes a symlink foo/bar -> ../baz/toto
+			#this is similar to 'ln -rs ...' from coreutils
 			def rel_ln_s(target)
 				on_ln_s(rel_path_to(target))
 			end
