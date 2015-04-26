@@ -130,6 +130,9 @@ module ShellHelpers
 			def rel_path(base: self.class.pwd, checkdir: false)
 				base=base.dirname unless base.directory? if checkdir
 				relative_path_from(base)
+			rescue ArgumentError => e
+				warn "#{self}.relative_path_from(#{base}): #{e}"
+				self
 			end
 
 			def convert_path(base: self.class.pwd, mode: :clean, checkdir: false)
@@ -170,6 +173,9 @@ module ShellHelpers
 				target=target.convert_path(base: tbase, mode: tmode)
 				from=inside ? source : source.dirname
 				target.relative_path_from(from)
+			rescue ArgumentError => e
+				warn "#{target}.relative_path_from(#{from}): #{e}"
+				self
 			end
 
 			#overwrites Pathname#find
