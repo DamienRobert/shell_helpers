@@ -32,7 +32,7 @@ opts.args.each do |l|
 		newpath=oldpath.convert_path(base: pathname.new(opts[:base]||l.dirname), mode: opts[:mode])
 		p newpath
 		puts "#{l}: #{oldpath} -> #{newpath}" if opts[:verbose]
-		l.on_ln_s(newpath)
+		l.on_ln_sf(newpath, dereference: :none)
 	else
 		puts "! #{l} is not a symlink" if opts[:verbose]
 	end

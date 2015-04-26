@@ -343,8 +343,15 @@ module ShellHelpers
 
 			FSError = Class.new(PathnameError)
 			[:cp,:cp_r,:cp_rf,:mv,:ln,:ln_s,:ln_sf].each do |method|
-				define_method :"on_#{method}" do |*files,rescue_error: true,
-					dereference: true, mode: :all, rm: nil, **opts,&b|
+				define_method :"on_#{method}" do |*files, rescue_error: true,
+					dereference: false, mode: :all, rm: nil, **opts,&b|
+					#FileUtils.{cp,mv,ln_s} dereference a symlink if it points to a
+					#directory; the only solution to not dereference it is to remove it
+					#before hand
+					if dereference==:none and rm.nil?
+						dereference=false
+						rm=:symlink
+					end
 					path=self.dereference(dereference)
 					if path.do_action?(mode: mode)
 						begin
