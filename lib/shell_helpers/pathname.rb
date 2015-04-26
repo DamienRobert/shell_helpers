@@ -164,18 +164,15 @@ module ShellHelpers
 			#level up self, except if inside is true)
 			#note: there is no real sense to use mode: :rel here, but we don't
 			#prevent it
-			def rel_path_to(target=self.class.pwd, base: self.class.pwd, mode: :abs_clean, inside: false, **opts)
+			def rel_path_to(target=self.class.pwd, base: self.class.pwd, mode: :rel, clean_mode: :abs_clean, inside: false, **opts)
 				sbase=opts[:source_base]||base
-				smode=opts[:source_mode]||mode
+				smode=opts[:source_mode]||clean_mode
 				tbase=opts[:target_base]||base
-				tmode=opts[:target_mode]||mode
+				tmode=opts[:target_mode]||clean_mode
 				source=self.convert_path(base: sbase, mode: smode)
 				target=target.convert_path(base: tbase, mode: tmode)
 				from=inside ? source : source.dirname
-				target.relative_path_from(from)
-			rescue ArgumentError => e
-				warn "#{target}.relative_path_from(#{from}): #{e}"
-				self
+				target.convert_path(base: from, mode: mode)
 			end
 
 			#overwrites Pathname#find

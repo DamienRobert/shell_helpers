@@ -6,8 +6,8 @@ require 'shell_helpers/options'
 opts = Slop.parse(ARGV) do |o|
 	o.bool "-v", "--verbose", "verbose"
 	o.bool "-t", "--test", "test"
-	o.string "-b", "--base", "Assume symlinks are relative to this base"
 	o.symbol "-m", "--mode", "Conversion mode", default: :rel
+	o.string "-b", "--base", "Assume symlinks are relative to this base"
 	o.symbol "--base-mode", "Base conversion mode", default: :abs_realdir
 	o.on '--help' do
 		puts o
@@ -27,10 +27,9 @@ end
 opts.args.each do |l|
 	l=pathname.new(l)
 	if l.symlink?
+		base=(opts[:base]||l.dirname).convert_path(mode: opts[:'base-mode'])
 		oldpath=l.readlink
-		base=pathname.new(opts[:base]||l.dirname).convert_path(mode: opts[:'base-mode'])
-		newpath=(base+oldpath).convert_path(base: base, mode: opts[:mode])
-		p base
+		newpath=l.rel_path_to(oldpath, base: base, mode: opts[:mode])
 		if oldpath != newpath
 			puts "#{l}: #{oldpath} -> #{newpath}" if opts[:verbose]
 			l.on_ln_sf(newpath, dereference: :none) 
