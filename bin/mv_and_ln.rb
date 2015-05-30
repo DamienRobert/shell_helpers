@@ -19,7 +19,7 @@ opts = Slop.parse(ARGV) do |o|
 end
 
 if opts[:force]
-	opts[:rm] ||= :all 
+	opts[:rm] ||= :all
 else
 	opts[:rm] ||= :noclobber
 end
