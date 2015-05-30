@@ -156,7 +156,7 @@ module ShellHelpers
 		# Access the shared logger.  All classes that include this module
 		# will get the same logger via this method.
 		def logger
-			unless Module.class_variable_defined?(:@@logger)
+			unless CLILogging.class_variable_defined?(:@@logger)
 				@@logger = CLILogger.new
 				@@logger.progname=$0
 			end
