@@ -99,7 +99,7 @@ module ShellHelpers
 		@orig_stderr=$stderr
 
 		#An improved find from Find::find that takes in the block the absolute and relative name of the files (+the directory where the relative file is from), and has filter options
-		def find(*bases, filter: nil, follow_symlink: false, depth: false, max_depth: nil, chdir: false)
+		def find(*bases, filter: nil, prune: nil, follow_symlink: false, depth: false, max_depth: nil, chdir: false)
 			block_given? or return enum_for(__method__, *bases, filter: filter, follow_symlink: follow_symlink, depth: depth, max_depth: max_depth, chdir: chdir)
 
 
@@ -108,18 +108,7 @@ module ShellHelpers
 				klass=base.is_a?(::Pathname) ? base.class : ::Pathname
 				base=klass.new(base)
 
-				yield_files=lambda do |*files|
-					files.map! {|f| f.dup.taint}
-					if chdir
-						Dir.chdir(base) do
-							yield *files, base
-						end
-					else
-						yield *files, base
-					end
-				end
-
-				test_filter=lambda do |*files|
+				test_filter=lambda do |filter,*files|
 					case filter
 					when Proc
 						filter.call(*files)
@@ -136,10 +125,23 @@ module ShellHelpers
 					end
 				end
 
+				yield_files=lambda do |*files|
+					unless test_filter.(filter,*files)
+						files.map! {|f| f.dup.taint}
+						if chdir
+							Dir.chdir(base) do
+								yield *files, base
+							end
+						else
+							yield *files, base
+						end
+					end
+				end
+
 				do_find=lambda do |*files|
 					file,filerel=*files
-					catch(:prune) do #use throw(:prune) to skip a path
-						unless test_filter.(*files)
+					catch(:prune) do #use throw(:prune) to skip a path (recursively)
+						unless test_filter.(prune,*files)
 							yield_files.(*files) unless depth
 							if file.directory? and (max_depth.nil? or filerel.each_filename.size <= max_depth)
 								next if !follow_symlink && file.symlink?
@@ -148,8 +150,8 @@ module ShellHelpers
 									f = filerel + f
 									do_find.(fj.untaint,f.untaint)
 								end
+								yield_files.(*files) if depth
 							end
-							yield_files.(*files) if depth
 						end
 					end
 				end
