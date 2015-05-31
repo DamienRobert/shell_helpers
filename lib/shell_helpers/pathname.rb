@@ -135,6 +135,7 @@ module ShellHelpers
 				self
 			end
 
+			#call abs_path or rel_path according to :mode
 			def convert_path(base: self.class.pwd, mode: :clean, checkdir: false)
 				case mode
 				when :clean
@@ -390,7 +391,7 @@ module ShellHelpers
 			def squel_dir(target, action: nil, **opts)
 				target=self.class.new(target)
 				target.find do |file|
-					squel(file,mkpath: !!action, **opts) do |out,rel_path|
+					squel(file,mkpath: opts.fetch(:mkpath,!!action), **opts) do |out,rel_path|
 						out.public_send(action, rel_path,**opts) if action and !file.directory?
 						yield(out,rel_path, target: file, squel_target: target, orig: self, **opts) if block_given?
 					end
