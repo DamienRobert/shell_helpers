@@ -246,5 +246,12 @@ module ShellHelpers
 			nil
 		end
 
+		def rsync(files, out, preserve: true, **opts)
+			require 'shell_helpers/sh'
+			rsync_opts=[]
+			rsync_opts << "-vaczP" if opts[:preserve]
+			Sh.sh(["rsync"]+rsync_opts+files+[out])
+		end
+
 	end
 end
