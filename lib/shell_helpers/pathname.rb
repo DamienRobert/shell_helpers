@@ -31,6 +31,16 @@ module ShellHelpers
 			end
 			alias_method :rm_rf, :rmtree
 
+			#use the low level FileUtils feature to copy the metadata
+			#if passed a dir just copy the dir metadata, not the directory recursively
+			#Note this differs from FileUtils.copy_entry who copy directories recursively
+			def copy_entry(dest, dereference: false, preserve: true)
+			  require 'fileutils'
+				ent = FileUtils::Entry_.new(@path, nil, dereference)
+				ent.copy dest.to_s
+				ent.copy_metadata dest.to_s if preserve
+			end
+
 			class <<self
 				def home
 					return Pathname.new(Dir.home)
@@ -360,7 +370,7 @@ module ShellHelpers
 			[:cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
 				define_method :"on_#{method}" do |*files, rescue_error: true,
 					dereference: false, mode: :all, rm: nil, mkpath: false, **opts,&b|
-					#FileUtils.{cp,mv,ln_s} dereference a symlink if it points to a
+					#FileUtils.{cp,mv,ln_s} dereference a target symlink if it points to a
 					#directory; the only solution to not dereference it is to remove it
 					#before hand
 					if dereference==:none and rm.nil?
