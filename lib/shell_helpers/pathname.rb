@@ -66,9 +66,14 @@ module ShellHelpers
 				return self.basename.to_s[0]=="."
 			end
 
-			def filewrite(*args,mode:"w",perm: nil,mkdir: false)
+			def filewrite(*args,mode:"w",perm: nil,mkpath: false,backup: false)
 				logger.debug("Write to #{self}"+ (perm ? " (#{perm})" : "")) if respond_to?(:logger)
 				self.dirname.mkpath if mkdir
+				self.backup if backup and exist?
+				if !exist? && symlink?
+					logger.debug "Removing bad symlink #{out}"
+					out.unlink
+				end
 				self.open(mode: mode) do |fh|
 					fh.chmod(perm) if perm
 					#hack to pass an array to write and do the right thing
@@ -348,7 +353,7 @@ module ShellHelpers
 			FSError = Class.new(PathnameError)
 			[:cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
 				define_method :"on_#{method}" do |*files, rescue_error: true,
-					dereference: false, mode: :all, rm: nil, **opts,&b|
+					dereference: false, mode: :all, rm: nil, mkpath: false, **opts,&b|
 					#FileUtils.{cp,mv,ln_s} dereference a symlink if it points to a
 					#directory; the only solution to not dereference it is to remove it
 					#before hand
@@ -360,6 +365,9 @@ module ShellHelpers
 					if path.do_action?(mode: mode)
 						begin
 							path.on_rm(mode: rm, rescue_error: false, **opts) if rm
+							if mkpath
+								path.to_s.each_char.to_a.last=="/" ? self.path : self.dirname.path
+							end
 							fuopts=opts.reject {|k,v| [:recursive].include?(k)}
 							self.class.fu_class.send(method,*files,path,**fuopts,&b)
 						rescue RemoveError
