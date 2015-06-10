@@ -23,6 +23,12 @@ module ShellHelpers
 		class Base < ::Pathname
 			#Some alias defined in FileUtils
 			alias_method :mkdir_p, :mkpath
+			alias_method :rm_r, :rmtree #rmtree should be rm_rf, not rm_r!
+			def rmtree
+			  require 'fileutils'
+			  FileUtils.rm_rf(@path)
+			  nil
+			end
 			alias_method :rm_rf, :rmtree
 
 			class <<self
@@ -68,7 +74,7 @@ module ShellHelpers
 
 			def filewrite(*args,mode:"w",perm: nil,mkpath: false,backup: false)
 				logger.debug("Write to #{self}"+ (perm ? " (#{perm})" : "")) if respond_to?(:logger)
-				self.dirname.mkpath if mkdir
+				self.dirname.mkpath if mkpath
 				self.backup if backup and exist?
 				if !exist? && symlink?
 					logger.debug "Removing bad symlink #{out}"
@@ -366,7 +372,7 @@ module ShellHelpers
 						begin
 							path.on_rm(mode: rm, rescue_error: false, **opts) if rm
 							if mkpath
-								path.to_s.each_char.to_a.last=="/" ? self.path : self.dirname.path
+								path.to_s.each_char.to_a.last=="/" ? path.mkpath : path.dirname.mkpath
 							end
 							fuopts=opts.reject {|k,v| [:recursive].include?(k)}
 							self.class.fu_class.send(method,*files,path,**fuopts,&b)
