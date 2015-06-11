@@ -222,7 +222,7 @@ module ShellHelpers
 		end
 
 		#split commands on newlines and run sh on each line
-		def commands(com, **opts)
+		def sh_commands(com, **opts)
 			com.each_line do |line|
 				sh(line,**opts)
 			end
