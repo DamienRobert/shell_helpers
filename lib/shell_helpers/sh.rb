@@ -221,6 +221,13 @@ module ShellHelpers
 			@sh_logger = logger
 		end
 
+		#split commands on newlines and run sh on each line
+		def commands(com, **opts)
+			com.each_line do |line|
+				sh(line,**opts)
+			end
+		end
+
 	private
 		def command_name(command)
 			if command.size == 1
