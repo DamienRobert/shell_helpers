@@ -246,13 +246,14 @@ module ShellHelpers
 			nil
 		end
 
-		def rsync(*files, out, preserve: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, **opts)
+		def rsync(*files, out, preserve: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, **opts)
 			require 'shell_helpers/sh'
 			rsync_opts=[]
 			rsync_opts << "-vaczP" if preserve
 			rsync_opts+=%w(--no-owner --no-group) if preserve==:nochown
 			rsync_opts << "--keep-dirlinks" if keep_dirlinks
 			rsync_opts << "--relative" if relative
+			rsync_opts << "--delete" if delete
 			opts[:log]||=true
 			opts[:log_level_execute]||=:info
 			if backup
