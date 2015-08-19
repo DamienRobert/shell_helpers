@@ -246,7 +246,7 @@ module ShellHelpers
 			nil
 		end
 
-		def rsync(*files, out, preserve: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, **opts)
+		def rsync(*files, out, preserve: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, **opts)
 			require 'shell_helpers/sh'
 			rsync_opts=[]
 			rsync_opts << "-vaczP" if preserve
