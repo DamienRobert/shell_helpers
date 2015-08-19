@@ -263,9 +263,10 @@ module ShellHelpers
 			opts[:log_level_execute]||=:info
 			if backup
 				rsync_opts << "--backup"
-				rsync_opts << (backup.to_s[-1]=="/" ? "--backup-dir=#{backup}" : "--backup-suffix=#{backup}") unless backup==true
+				rsync_opts << (backup.to_s[-1]=="/" ? "--backup-dir=#{backup}" : "--suffix=#{backup}") unless backup==true
 			end
-			Sh.sh( (sudo ? ["sudo"] : [])+["rsync"]+rsync_opts+files.map(&:to_s)+[out.to_s], **opts)
+			Sh.sh( (sudo ? ["sudo"] : [])+["rsync"]+rsync_opts+files.map(&:to_s)+[out.to_s], expected: expected, **opts)
+			#rsync error code 23 is some files/attrs were not transferred
 		end
 
 	end
