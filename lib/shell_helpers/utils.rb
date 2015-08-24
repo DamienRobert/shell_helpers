@@ -99,11 +99,10 @@ module ShellHelpers
 		@orig_stderr=$stderr
 
 		#An improved find from Find::find that takes in the block the absolute and relative name of the files (+the directory where the relative file is from), and has filter options
+		#Returns ::Pathname, except when the value is SH::Pathname where it
+		#returns a SH::Pathname
 		def find(*bases, filter: nil, prune: nil, follow_symlink: false, depth: false, max_depth: nil, chdir: false)
 			block_given? or return enum_for(__method__, *bases, filter: filter, follow_symlink: follow_symlink, depth: depth, max_depth: max_depth, chdir: chdir)
-
-
-
 			bases.collect!{|d| raise Errno::ENOENT unless File.exist?(d); d.dup}.each do |base|
 				klass=base.is_a?(::Pathname) ? base.class : ::Pathname
 				base=klass.new(base)
