@@ -267,6 +267,20 @@ module ShellHelpers
 				end
 				r
 			end
+
+			#calls an external program
+			def call(prog,*args,pos: :last,full:false,**opts)
+				name=to_s
+				name=(self.class.pwd+self).to_s if full and relative?
+				sh_args=args
+				pos=sh_args.length if pos==:last
+				sh_args[pos,0]=name
+				Sh.sh(prog,*sh_args,**opts)
+			end
+
+			def chattr(*args,**opts)
+				call("chattr",*args,**opts)
+			end
 		end
 
 		module FUClass
