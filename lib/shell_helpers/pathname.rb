@@ -78,6 +78,11 @@ module ShellHelpers
 			end
 			alias_method :/, :+
 
+			#exist? returns false if called on a symlink pointing to a non existing file
+			def may_exist?
+				exist? or symlink?
+			end
+
 			def hidden?
 				return self.basename.to_s[0]=="."
 			end
@@ -117,8 +122,8 @@ module ShellHelpers
 			end
 			#find a non existing filename
 			def nonexisting_name
-				return self unless self.exist?
-				new_name(Proc.new {|f| !f.exist?}) do |old_name, ind|
+				return self unless self.may_exist?
+				new_name(Proc.new {|f| !f.may_exist?}) do |old_name, ind|
 					old_name.append_name("%02d" % ind)
 				end
 			end
@@ -347,7 +352,7 @@ module ShellHelpers
 				when :none, false
 					return false
 				when :noclobber
-					return false if path.exist? || path.symlink?
+					return false if path.may_exist?
 				when :symlink
 					return false unless path.symlink?
 				when :dangling_symlink
@@ -363,7 +368,7 @@ module ShellHelpers
 			RemoveError = Class.new(PathnameError)
 			def on_rm(recursive: false, mode: :all, dereference: false, rescue_error: true, **others)
 				path=self.dereference(dereference)
-				return nil unless path.exist?
+				return nil unless path.may_exist?
 				if path.do_action?(mode: mode)
 					fuopts=others.select {|k,v| [:verbose,:noop,:force].include?(k)}
 					if recursive
