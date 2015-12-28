@@ -25,9 +25,9 @@ module ShellHelpers
 			alias_method :mkdir_p, :mkpath
 			alias_method :rm_r, :rmtree #rmtree should be rm_rf, not rm_r!
 			def rmtree
-			  require 'fileutils'
-			  FileUtils.rm_rf(@path)
-			  nil
+				require 'fileutils'
+				FileUtils.rm_rf(@path)
+				nil
 			end
 			alias_method :rm_rf, :rmtree
 
@@ -35,7 +35,7 @@ module ShellHelpers
 			#if passed a dir just copy the dir metadata, not the directory recursively
 			#Note this differs from FileUtils.copy_entry who copy directories recursively
 			def copy_entry(dest, dereference: false, preserve: true)
-			  require 'fileutils'
+				require 'fileutils'
 				ent = FileUtils::Entry_.new(@path, nil, dereference)
 				ent.copy dest.to_s
 				ent.copy_metadata dest.to_s if preserve
@@ -126,6 +126,14 @@ module ShellHelpers
 				new_name(Proc.new {|f| !f.may_exist?}) do |old_name, ind|
 					old_name.append_name("%02d" % ind)
 				end
+			end
+
+			#taken from facets/split_all
+			def split_all
+				head, tail = split
+				return [tail] if head.to_s == '.' || tail.to_s == '/'
+				return [head, tail] if head.to_s == '/'
+				return head.split_all + [tail]
 			end
 
 			def backup(suffix: '.old', overwrite: true)
@@ -319,7 +327,7 @@ module ShellHelpers
 
 			#We need to inverse the way we call cp, since it is the only way we can
 			#mv/cp several files in a directory:
-			#    self.on_cp("file1","file2")
+			#		 self.on_cp("file1","file2")
 			#Options: preserve noop verbose force
 			#Note: if ActionHandler is included, this will overwrite these
 			#methods
