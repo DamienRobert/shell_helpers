@@ -38,9 +38,11 @@ module ShellHelpers
 					raise e
 				when :empty
 					out=""
+				when :nil
+					out=nil
 				end
 			end
-			out.chomp! if chomp
+			out.chomp! if chomp and out
 			return out, status
 		end
 
