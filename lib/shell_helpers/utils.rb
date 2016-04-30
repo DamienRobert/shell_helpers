@@ -245,6 +245,15 @@ module ShellHelpers
 			nil
 		end
 
+		def find_file(file,path)
+			path.each do |dir|
+				dir=Pathname.new(dir)
+				path=dir+file
+				return path if path.file?
+			end
+			return nil
+		end
+
 		def rsync(*files, out, preserve: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, **opts)
 			require 'shell_helpers/sh'
 			rsync_opts=[]
