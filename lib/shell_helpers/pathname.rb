@@ -67,6 +67,10 @@ module ShellHelpers
 				def [](path)
 					new(path)
 				end
+
+				def cd(dir,&b)
+					self.new(dir).cd(&b)
+				end
 			end
 
 			#these Pathname methods explicitly call Pathname.new so do not respect
