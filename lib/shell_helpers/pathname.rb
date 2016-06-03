@@ -419,7 +419,7 @@ module ShellHelpers
 						begin
 							path.on_rm(mode: rm, rescue_error: false, **opts) if rm
 							if mkpath
-								path.to_s.each_char.to_a.last=="/" ? path.mkpath : path.dirname.mkpath
+								path.to_s[-1]=="/" ? path.mkpath : path.dirname.mkpath
 							end
 							fuopts=opts.reject {|k,v| [:recursive].include?(k)}
 							self.class.fu_class.send(method,*files,path,**fuopts,&b)

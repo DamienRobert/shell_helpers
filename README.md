@@ -23,6 +23,24 @@
   this functionality from other command parsers than methadone
   (like [gli](https://github.com/davetron5000/gli)).
 
+## Features
+
+  One of the main feature is an extension of the class `Pathname` with a
+  lots of methods to help in shell related task.
+
+## Examples
+
+    require 'shell_helpers'
+    SH::Pathname.new("foo").cp("bar") #calls FileUtils.cp("foo","bar")
+    SH::Pathname.new("foo/").on_cp("bar","baz") #copy 'bar' and 'baz' to 'foo/'
+    SH::Pathname.new("foo").on_rm(mode: :dangling_symlink) #remove 'foo' only if it is a dangling symlink
+    SH::Pathname.new("foo").squel("bar/baz", action: :on_ln_s) #create a symlink foo/bar/baz -> ../../bar/baz
+
+    #Symlink all files in a directory into another, while preserving the structure
+    SH::Pathname.new("foo").squel_dir("bar',action: :on_ln_s)
+    #Remove these symlinks
+    SH::Pathname.new("foo").squel_dir("bar") {|o,t| o.on_rm(mode: :symlink)} 
+
 ## Warning
 
   For now the API is experimental and some parts are not ready to use!
@@ -33,7 +51,7 @@
 
 ## Copyright
 
-Copyright (c) 2015 Damien Robert
+Copyright © 2015–2016 Damien Robert
 
 MIT License. See {file:LICENSE.txt} for details.
 
