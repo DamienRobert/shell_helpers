@@ -142,7 +142,7 @@ module ShellHelpers
 					catch(:prune) do #use throw(:prune) to skip a path (recursively)
 						unless test_filter.(prune,*files)
 							yield_files.(*files) unless depth
-							if file.directory? and (max_depth.nil? or filerel.each_filename.size <= max_depth)
+							if file.directory? and (max_depth.nil? or (filerel.to_s=="." and max_depth>0) or filerel.each_filename.to_a.size < max_depth)
 								next if !follow_symlink && file.symlink?
 								file.children(false).sort.reverse_each do |f|
 									fj = file + f
