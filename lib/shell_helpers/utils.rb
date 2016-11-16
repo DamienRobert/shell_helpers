@@ -24,7 +24,7 @@ module ShellHelpers
 		end
 
 		#from {ploum: plim} return something like
-		#ploum=plim
+		#PLOUM=plim
 		#that can be evaluated by the shell
 		def export_hash(hash, local: false, export: false, prefix:"")
 			r=""
@@ -44,7 +44,7 @@ module ShellHelpers
 			#name=name.upcase
 			r+="local #{name}\n" if local
 			r+="typeset -A #{name};\n" if Hash === value
-			r+=name+"="+export_value(value)+";\n"
+			r+=name.gsub('/','_')+"="+export_value(value)+";\n"
 			r+="export #{name}\n" if export
 			return r
 		end
