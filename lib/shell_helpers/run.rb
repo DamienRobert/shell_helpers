@@ -128,7 +128,7 @@ module ShellHelpers
 							 else
 								 status
 							 end
-			if status.kind_of? Fixnum
+			if status.kind_of? Integer
 				status
 			elsif status
 				0
