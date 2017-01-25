@@ -23,29 +23,34 @@ module ShellHelpers
 			end
 		end
 
-		#from {ploum: plim} return something like
-		#PLOUM=plim
-		#that can be evaluated by the shell
-		def export_hash(hash, local: false, export: false, prefix:"")
-			r=""
-			r+="local #{hash.keys.map {|s| s.to_s.upcase}.join(" ")}\n" if local
-			hash.each do |k,v|
-				name=prefix+k.to_s.upcase
-				r+="typeset -A #{name};\n" if Hash === v
-				r+=name+"="+export_value(v)+";\n"
-			end
-			r+="export #{hash.keys.map {|k| prefix+k.to_s.upcase}.join(" ")}\n" if export
-			return r
+		def escape_name(name, prefix:"", upcase: true)
+			name=name.to_s
+			name=name.upcase if upcase
+			(prefix+name).gsub('/','_')
 		end
 
 		#export_variable("ploum","plam") yields ploum="plam"
-		def export_variable(name, value, local: false, export: false)
+		def export_variable(name, value, local: false, export: false, prefix:"",upcase:true)
 			r=""
-			#name=name.upcase
+			name=escape_name(name,prefix:prefix,upcase:upcase)
 			r+="local #{name}\n" if local
-			r+="typeset -A #{name};\n" if Hash === value
-			r+=name.gsub('/','_')+"="+export_value(value)+";\n"
+			r+="typeset -A #{name}\n" if Hash === value
+			r+="#{name}=#{export_value(value)}\n"
 			r+="export #{name}\n" if export
+			return r
+		end
+
+		#from {ploum: plim} return something like
+		#PLOUM=plim
+		#that can be evaluated by the shell
+		def export_variables(hash, local: false, export: false, prefix:"",upcase:true)
+			names=hash.keys.map {|s| escape_name(s,prefix:prefix,upcase:upcase)}
+			r=""
+			r+="local #{names.join(" ")}\n" if local
+			hash.each do |k,v|
+				r+=export_variable(k,v,prefix:prefix,upcase:upcase)
+			end
+			r+="export #{names.join(" ")}\n" if export
 			return r
 		end
 
@@ -65,23 +70,32 @@ module ShellHelpers
 		#But in split hash mode, we put the keys in uppercase (to prevent collisions)
 		def export_parse(hash,s)
 			r=""
-			args=DR::SimpleParser.parse_string(s)
+			args=DR::SimpleParser.parse_string(s.to_s)
 			args[:values].each do |k,v|
-				name=k
-				if !v
-					v=name
-					#in split mode, don't use prefix if name gave the value
-					name= name.size==1? "all" : "" if name[name.size-1]=="/"
+				if v
+					name=k.to_s
+				else
+					#no name given
+					v=k.to_s
+					if v !='/' && v[-1]=='/'
+						#in split mode we don't need the name
+						name="" 
+					else
+						#else since no name was given we reuse the variable
+						name=v
+						name="all" if v=="/"
+					end
 				end
-				if v.size>1 && v[v.size-1]=='/'
+				if v != '/' && v[-1]=='/'
 					all=true
-					v=v[0...v.size-1]
+					v=v[0...-1]
 				end
 				value=hash.keyed_value(v)
+				opts=args[:opts][k]
 				if all
-					r+=export_hash(value, local: args[:opts][k]["local"], export: args[:opts][k]["export"], prefix: name)
+					r+=export_variables(value, prefix: name, **opts)
 				else
-					r+=export_variable(name,value, local: args[:opts][k]["local"], export: args[:opts][k]["export"])
+					r+=export_variable(name,value, **opts)
 				end
 			end
 			return r

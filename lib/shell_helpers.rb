@@ -22,7 +22,7 @@ module ShellHelpers
 		Pathname.send(:include, CLILogging)
 		logger.level=(level)
 	end
-	#including SH::FU to add FileUtils
+	#include SH::FU to add FileUtils
 	module FU
 		include ::FileUtils
 		include ::ShellHelpers
