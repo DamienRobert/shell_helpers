@@ -18,6 +18,10 @@ module ShellHelpers
 					return "(#{v.map {|k,v| k.to_s.shellescape+" "+v.to_s.shellescape}.join(' ')})"
 				when nil
 					return ""
+				when ->(x){x.respond_to?(:to_a)}
+					return export_value(v.to_a)
+				when ->(x){x.respond_to?(:to_h)}
+					return export_value(v.to_h)
 				else
 					return v.to_s.shellescape
 			end

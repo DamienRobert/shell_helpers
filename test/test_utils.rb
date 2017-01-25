@@ -6,6 +6,7 @@ describe SH::ShellExport do
 		SH.export_value("foo").must_equal "foo"
 		SH.export_value(["foo","bar"]).must_equal "(foo bar)"
 		SH.export_value(["foo","bar"]).must_equal "(foo bar)"
+		SH.export_value(Set.new(["foo","bar"])).must_equal "(foo bar)"
 		SH.export_value({foo:"bar"}).must_equal "(foo bar)"
 	end
 
