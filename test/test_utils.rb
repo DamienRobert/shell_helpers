@@ -64,4 +64,13 @@ describe SH::ShellExport do
 		SH.import_variable("foo=bar").must_equal ["foo","bar"]
 		SH.import_variable("foo=(bar baz)").must_equal ["foo",%w(bar baz)]
 	end
+
+	it "can import instructions" do
+		SH.import_parse("foo=bar,ploum=plim").must_equal({foo: "bar", ploum: "plim"})
+		SH.import_parse(<<EOS).must_equal({foo: "bar", ploum: %w(plim plam)})
+foo=bar
+ploum=(plim plam)
+EOS
+		SH.import_parse("foo/bar=baz,ploum=plim").must_equal({foo: {bar: "baz"}, ploum: "plim"})
+	end
 end

@@ -140,16 +140,18 @@ module ShellHelpers
 		end
 	end
 
-	def import_parse(s, split_on: :auto)
+	def import_parse(s, split_on: :auto, var_separator:'/')
 		r={}
 		if split_on == :auto
 			split_on=","
-			split_on="\n" if s =~ "\n"
+			split_on="\n" if s =~ /\n/
 		end
-		instructions=s.split_on(split)
+		instructions=s.split(split_on)
 		instructions.each do |namevalue|
 			name,value=import_variable(namevalue)
+			r.set_keyed_value(name,value, sep: var_separator)
 		end
+		r
 	end
 
 	module ShellUtils
