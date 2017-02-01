@@ -62,7 +62,7 @@ module ShellHelpers
 
 		def import_variable(namevalue, downcase:true, type: :auto)
 			#TODO: handle quotes
-			namevalue.match(/(local|export)?\s*(\w*)=(.*)$/) do |m|
+			namevalue.match(/(local|export)?\s*(\S*)=(.*)$/) do |m|
 				_match,_type,name,value=m.to_a
 				name=name.downcase if downcase
 				if type == :auto
