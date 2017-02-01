@@ -26,10 +26,11 @@ module ShellHelpers
 					return v.to_s.shellescape
 			end
 		end
-		def import_value(v, type: String)
+		def import_value(v, type: String, unquote: true)
 			#String === String => false
 			case type.to_s
 			when "String"
+				v.gsub!(/\A['"]+|['"]+\Z/, "") if unquote
 				v.to_s
 			when "Integer"
 				v.to_i
@@ -37,6 +38,7 @@ module ShellHelpers
 				v.to_sym
 			when "Array"
 				#v is of the form (ploum plam)
+				#TODO: handle quotes in the array
 				eval "%w#{v}"
 			when "Hash"
 				import_value(v, type: Array).each_slice(2).to_h
@@ -61,7 +63,6 @@ module ShellHelpers
 		end
 
 		def import_variable(namevalue, downcase:true, type: :auto)
-			#TODO: handle quotes
 			namevalue.match(/(local|export)?\s*(\S*)=(.*)$/) do |m|
 				_match,_type,name,value=m.to_a
 				name=name.downcase if downcase

@@ -62,6 +62,7 @@ describe SH::ShellExport do
 
 	it "can import a variable" do
 		SH.import_variable("foo=bar").must_equal ["foo","bar"]
+		SH.import_variable("foo='bar'").must_equal ["foo","bar"]
 		SH.import_variable("foo=(bar baz)").must_equal ["foo",%w(bar baz)]
 	end
 
