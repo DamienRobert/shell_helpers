@@ -52,4 +52,16 @@ describe SH::ShellExport do
 		#use !! for global options
 		SH.export_parse(h,"ploum!local,var:foo/a!!export").must_equal "local PLOUM\nPLOUM=plam\nexport PLOUM\nVAR=1\nexport VAR\n"
 	end
+
+	it "can import a value" do
+		SH.import_value("foo").must_equal "foo"
+		SH.import_value("foo", type: Symbol).must_equal :foo
+		SH.import_value("(foo bar)", type: Array).must_equal %w(foo bar)
+		SH.import_value("(foo bar)", type: Hash).must_equal({"foo"=>"bar"})
+	end
+
+	it "can import a variable" do
+		SH.import_variable("foo=bar").must_equal ["foo","bar"]
+		SH.import_variable("foo=(bar baz)").must_equal ["foo",%w(bar baz)]
+	end
 end

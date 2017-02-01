@@ -26,6 +26,22 @@ module ShellHelpers
 					return v.to_s.shellescape
 			end
 		end
+		def import_value(v, type: String)
+			#String === String => false
+			case type.to_s
+			when "String"
+				v.to_s
+			when "Integer"
+				v.to_i
+			when "Symbol"
+				v.to_sym
+			when "Array"
+				#v is of the form (ploum plam)
+				eval "%w#{v}"
+			when "Hash"
+				import_value(v, type: Array).each_slice(2).to_h
+			end
+		end
 
 		def escape_name(name, prefix:"", upcase: true)
 			name=name.to_s
@@ -42,6 +58,24 @@ module ShellHelpers
 			r+="#{name}=#{export_value(value)}\n"
 			r+="export #{name}\n" if export
 			return r
+		end
+
+		def import_variable(namevalue, downcase:true, type: :auto)
+			#TODO: handle quotes
+			namevalue.match(/(local|export)?\s*(\w*)=(.*)$/) do |m|
+				_match,_type,name,value=m.to_a
+				name=name.downcase if downcase
+				if type == :auto
+					if value=~/^\(.*\)$/
+						value=import_value(value, type: Array)
+					else
+						value=import_value(value)
+					end
+				else
+					value=import_value(value, type: type)
+				end
+				return name, value
+			end
 		end
 
 		#from {ploum: plim} return something like
@@ -103,6 +137,18 @@ module ShellHelpers
 				end
 			end
 			return r
+		end
+	end
+
+	def import_parse(s, split_on: :auto)
+		r={}
+		if split_on == :auto
+			split_on=","
+			split_on="\n" if s =~ "\n"
+		end
+		instructions=s.split_on(split)
+		instructions.each do |namevalue|
+			name,value=import_variable(namevalue)
 		end
 	end
 
