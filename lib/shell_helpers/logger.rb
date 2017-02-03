@@ -57,6 +57,7 @@ module ShellHelpers
 		end
 
 		proxy_method :'formatter='
+		proxy_method :'progname='
 		proxy_method :'datetime_format='
 
 		def add(severity, message = nil, progname = nil, &block) #:nodoc:
