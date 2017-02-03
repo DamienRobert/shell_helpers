@@ -114,7 +114,7 @@ module ShellHelpers
 			@default_sh_options||={log: false, capture: false, on_success: nil, on_failure: nil, expected:0, dryrun: false, escape: false,
 			log_level_execute: :debug, log_level_error: :error,
 			log_level_stderr: :error, log_level_stdout_success: :info,
-			log_level_stdout_fail: :warn}
+			log_level_stdout_fail: :warn, detach: false}
 		end
 
 		# Run a shell command, capturing and logging its output.
@@ -161,13 +161,24 @@ module ShellHelpers
 						stdout,stderr,status = DR::Run.run_command(command.to_s,**opts)
 					end
 				else
-					case command
-					when Array
-						system(*command,**opts)
+					if curopts[:detach]
+						case command
+						when Array
+							pid=spawn(*command,**opts)
+						else
+							pid=spawn(command.to_s,**opts)
+						end
+						Process.detach(pid)
+						status=0
 					else
-						system(command.to_s,**opts)
+						case command
+						when Array
+							system(*command,**opts)
+						else
+							system(command.to_s,**opts)
+						end
+						status=$?
 					end
-					status=$?
 					stdout=nil; stderr=nil
 				end
 			else
