@@ -146,6 +146,10 @@ module ShellHelpers
 				v=opts.delete(k)
 				curopts[k]=v if v
 			end
+			#some of the spawn options are not in keyword form, so to pass them
+			#along use the option keyword :spawn
+			(spawn_opts=opts.delete(:spawn)) && opts.merge!(spawn_opts)
+
 			log=curopts[:log]
 			command=command.first if command.length==1 and command.first.kind_of?(Array)
 			command_name = curopts[:name] || command_name(command)
