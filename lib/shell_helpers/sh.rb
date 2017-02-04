@@ -139,6 +139,34 @@ module ShellHelpers
 		#			end
 		#
 		# Returns the exit status of the command.  Note that if the command doesn't exist, this returns 127.
+
+		def shrun(*args,mode: :system, **opts)
+			spawn_opts={}
+			if args.last.kind_of?(Hash)
+				#we may have no symbol keywords
+				*args,spawn_opts=*args
+			end
+			spawn_opts.merge!(opts)
+			env={}
+			opts[:env]||={}
+			if args.first.kind_of?(Hash)
+				env,*args=*args
+			end
+			env.merge!(opts.delete(:env)||{})
+			
+			case mode
+			when :system
+				#p "system(#{env},#{args},#{spawn_opts})"
+				system(env,*args,spawn_opts)
+			when :spawn
+				spawn(env,*args,spawn_opts)
+			when :exec
+				exec(env,*args,spawn_opts)
+			when :capture
+				DR::Run.run_command(env,*args,spawn_opts)
+			end
+		end
+
 		def sh(*command, **opts, &block)
 			defaults=default_sh_options
 			curopts=defaults.dup
@@ -146,49 +174,27 @@ module ShellHelpers
 				v=opts.delete(k)
 				curopts[k]=v if v
 			end
-			#some of the spawn options are not in keyword form, so to pass them
-			#along use the option keyword :spawn
-			(spawn_opts=opts.delete(:spawn)) && opts.merge!(spawn_opts)
 
 			log=curopts[:log]
-			command=command.first if command.length==1 and command.first.kind_of?(Array)
+			command=command.first if command.length==1 and command.first.kind_of?(Array) #so that sh(["ls", "-a"]) works
 			command_name = curopts[:name] || command_name(command)
 			command=command.shelljoin if curopts[:escape]
 			sh_logger.send(curopts[:log_level_execute], SimpleColor.color("Executing '#{command_name}'",:bold)) if log
 
 			if !curopts[:dryrun]
 				if curopts[:capture]
-					case command
-					when Array
-						stdout,stderr,status = DR::Run.run_command(*command,**opts)
-					else
-						stdout,stderr,status = DR::Run.run_command(command.to_s,**opts)
-					end
+					stdout,stderr,status = shrun(*command,**opts,mode: :capture)
+				elsif curopts[:detach]
+					pid = shrun(*command,**opts,mode: :spawn)
+					Process.detach(pid)
+					status=0; stdout=nil; stderr=nil
 				else
-					if curopts[:detach]
-						case command
-						when Array
-							pid=spawn(*command,**opts)
-						else
-							pid=spawn(command.to_s,**opts)
-						end
-						Process.detach(pid)
-						status=0
-					else
-						case command
-						when Array
-							system(*command,**opts)
-						else
-							system(command.to_s,**opts)
-						end
-						status=$?
-					end
-					stdout=nil; stderr=nil
+					shrun(*command,**opts,mode: :system)
+					status=$?; stdout=nil; stderr=nil
 				end
 			else
 				puts command.to_s
-				status=0
-				stdout=nil; stderr=nil
+				status=0; stdout=nil; stderr=nil
 			end
 			process_status = ProcessStatus.new(status,curopts[:expected])
 
