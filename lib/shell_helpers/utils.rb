@@ -348,5 +348,21 @@ module ShellHelpers
 			#rsync error code 23 is some files/attrs were not transferred
 		end
 
+		def capture_stdout
+			old_stdout = $stdout
+			$stdout = StringIO.new('','w')
+			if block_given?
+				begin
+					yield
+					output=$stdout.string
+				ensure
+					$stdout = old_stdout
+				end
+				return output
+			else
+				return old_stdout
+			end
+		end
+
 	end
 end
