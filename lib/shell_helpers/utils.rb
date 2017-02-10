@@ -140,15 +140,23 @@ module ShellHelpers
 			return r
 		end
 
-		def import_parse(s, split_on: :auto, var_separator:'/')
+		def import_parse(s, split_on: :auto, var_separator:'/', inline: false)
 			r={}
 			if split_on == :auto
 				split_on=","
 				split_on="\n" if s =~ /\n/
 			end
-			instructions=s.split(split_on)
+			if s.is_a?(Enumerable)
+				instructions=s
+			else
+				instructions=s.split(split_on)
+			end
 			instructions.each do |namevalue|
-				name,value=import_variable(namevalue)
+				if inline
+					name,value=DR::SimpleParser.parse_namevalue(optvalue,sep:'=')
+				else
+					name,value=import_variable(namevalue)
+				end
 				r.set_keyed_value(name,value, sep: var_separator)
 			end
 			r
