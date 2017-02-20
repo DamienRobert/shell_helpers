@@ -10,6 +10,7 @@ homepage: https://github.com/DamienRobert/shell_helpers#readme
 dependencies:
   drain: ~> 0.1
 development_dependencies:
-  minitest: ~> 5.0
-  rubygems-tasks: ~> 0.2
-  yard: ~> 0.8
+  minitest: "~> 5.0"
+  rake: "~> 10"
+  rubygems-tasks: "~> 0.2"
+  yard: "~> 0.8"
