@@ -342,7 +342,10 @@ module ShellHelpers
 			#on dest: do not replace a symlink to a directory with the real directory
 			#use --copy-dirlinks for the same usage on source
 			rsync_opts << "--keep-dirlinks" if keep_dirlinks
-			rsync_opts << "--relative" if relative
+			if relative
+				rsync_opts << "--relative"
+				rsync_opts << "--no-implied-dirs"
+			end
 			rsync_opts << "--delete" if delete
 			if clean_out
 				out=Pathname.new(out)
