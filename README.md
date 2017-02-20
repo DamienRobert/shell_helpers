@@ -1,10 +1,12 @@
 # shell_helpers
 
 * [Homepage](https://github.com/DamienRobert/shell_helpers#readme)
-* [Gems]("https://rubygems.org/gems/shell_helpers)
 * [Issues](https://github.com/DamienRobert/shell_helpers/issues)
-* [Documentation](http://rubydoc.info/gems/shell_helpers/frames)
+* [Documentation](http://rubydoc.info/gems/shell_helpers)
 * [Email](mailto:Damien.Olivier.Robert+gems at gmail.com)
+
+[![Gem Version](https://img.shields.io/gem/v/shell_helpers.svg)](https://rubygems.org/gems/shell_helpers)
+[![Build Status](https://travis-ci.org/DamienRobert/shell_helpers.svg?branch=master)](https://travis-ci.org/DamienRobert/shell_helpers)
 
 ## Description
 
