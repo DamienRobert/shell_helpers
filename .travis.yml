@@ -7,4 +7,4 @@ rvm:
   - 2.1.10
   #- ruby-head
   #- ruby-head-clang
-script: rake test
+script: bundle exec rake test
