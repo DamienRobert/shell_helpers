@@ -1,7 +1,7 @@
 require 'helper'
 require 'shell_helpers'
 
-describe SH::ShellExport do
+describe SH::Export do
 	it "can export a value" do
 		SH.export_value("foo").must_equal "foo"
 		SH.export_value(["foo","bar"]).must_equal "(foo bar)"
