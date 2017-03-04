@@ -87,10 +87,6 @@ module ShellHelpers
 				exist? or symlink?
 			end
 
-			def hidden?
-				return self.basename.to_s[0]=="."
-			end
-
 			def filewrite(*args,mode:"w",perm: nil,mkpath: false,backup: false)
 				logger.debug("Write to #{self}"+ (perm ? " (#{perm})" : "")) if respond_to?(:logger)
 				self.dirname.mkpath if mkpath
