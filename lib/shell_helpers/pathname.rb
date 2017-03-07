@@ -213,8 +213,8 @@ module ShellHelpers
 			#overwrites Pathname#find
 			alias orig_find find
 			def find(*args,&b)
-				require 'dr/sh/utils'
-				ShellUtils.find(self,*args,&b)
+				require 'shell_helpers/utils'
+				Utils.find(self,*args,&b)
 			end
 
 			#follow a symlink
