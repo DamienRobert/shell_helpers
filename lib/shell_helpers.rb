@@ -3,10 +3,16 @@ require 'shell_helpers/version'
 require 'fileutils'
 #require 'dr/ruby_ext/core_ext'
 #load everything in shell_helpers/*.rb
-dir=File.expand_path(File.basename(__FILE__).chomp('.rb'), File.dirname(__FILE__))
-Dir.glob(File.expand_path('*.rb',dir)) do |file|
-	require file
-end
+#dir=File.expand_path(File.basename(__FILE__).chomp('.rb'), File.dirname(__FILE__))
+#Dir.glob(File.expand_path('*.rb',dir)) do |file|
+#	require file
+#end
+require 'shell_helpers/logger'
+require 'shell_helpers/run'
+require 'shell_helpers/sh'
+require 'shell_helpers/utils'
+require 'shell_helpers/export'
+require 'shell_helpers/pathname'
 
 module ShellHelpers
 	include Run #run_command, run_output, run_status, run
