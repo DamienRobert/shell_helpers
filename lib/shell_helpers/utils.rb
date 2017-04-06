@@ -74,8 +74,8 @@ module ShellHelpers
 		end
 
 		#all output is sent to the pager
-		def run_pager(opt=nil)
-			return unless $stdout.tty? and opt != :never
+		def run_pager(*args, launch: :tty, default_less_env: "-FRX")
+			return unless $stdout.tty? and launch != :never
 			read, write = IO.pipe
 
 			unless Kernel.fork # Child process
@@ -92,16 +92,17 @@ module ShellHelpers
 			write.close
 
 			#ENV['LESS'] = 'FSRX' # Don't page if the input is short enough
-			lessenv=ENV['LESS']
-			lessenv="-FRX" if lessenv.empty?
-			lessenv+="F" unless lessenv.match(/F/) or opt == :always
-			lessenv+="R" unless lessenv.match(/R/)
-			lessenv+="X" unless lessenv.match(/X/)
-			ENV['LESS']=lessenv
+			less_env=ENV['LESS']
+			less_env=default_less_env if less_env.empty?
+			less_env+="F" unless less_env.match(/F/) or launch == :always
+			less_env+="R" unless less_env.match(/R/)
+			less_env+="X" unless less_env.match(/X/)
+			ENV['LESS']=less_env
 
 			Kernel.select [$stdin] # Wait until we have input before we start the pager
 			pager = ENV['PAGER'] || 'less'
-			exec pager rescue exec "/bin/sh", "-c", pager
+			run=args.unshift(pager)
+			exec *run rescue exec "/bin/sh", "-c", *run
 		end
 
 		#inside run_pager, escape from the pager
