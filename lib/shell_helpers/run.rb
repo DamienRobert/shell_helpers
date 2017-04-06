@@ -25,14 +25,12 @@ module ShellHelpers
 
 		#wrap the output of the command in an enumerator
 		#allows to lazily parse the result
-		def run_enum(*command)
-			Enumerator.new do |y|
-				IO.popen(command) do |f|
-					f.each_line do |l|
-						y<<l
-					end
-				end
-			end.each.lazy
+		def run_lazy(*command)
+			r=nil
+			IO.popen(command) do |f|
+				r=f.each_line.lazy
+			end
+			r
 		end
 
 
