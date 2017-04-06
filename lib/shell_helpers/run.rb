@@ -7,18 +7,34 @@ module ShellHelpers
 		extend(self)
 		#the run_* commands here capture all the output
 		def run_command(*command)
+			#stdout, stderr, status
 			return Open3.capture3(*command)
 		end
 
 		def run_output(*command)
-			stdout,_stderr,_status = run_command(*command)
+			stdout,_status = Open3.capture2(*command)
 			return stdout
 		end
 
 		def run_status(*command)
 			_stdout,_stderr,status = run_command(*command)
 			return status.success?
+			#system(*command)
+			#return $?.dup
 		end
+
+		#wrap the output of the command in an enumerator
+		#allows to lazily parse the result
+		def run_enum(*command)
+			Enumerator.new do |y|
+				IO.popen(command) do |f|
+					f.each_line do |l|
+						y<<l
+					end
+				end
+			end.each.lazy
+		end
+
 
 		#a simple wrapper for %x//
 		def run_simple(*command, quiet: false, fail_mode: :error, chomp: false)
