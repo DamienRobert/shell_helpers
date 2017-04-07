@@ -128,6 +128,11 @@ module ShellHelpers
 				end
 			end
 
+			#return true if the file is a text
+			def text?
+				!! %x/file #{self.to_s}/.match(/text/)
+			end
+
 			#taken from facets/split_all
 			def split_all
 				head, tail = split
@@ -215,6 +220,10 @@ module ShellHelpers
 			def find(*args,&b)
 				require 'shell_helpers/utils'
 				Utils.find(self,*args,&b)
+			end
+
+			def glob(pattern)
+				self.cd { return Dir.glob(pattern) }
 			end
 
 			#follow a symlink
