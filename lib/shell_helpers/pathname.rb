@@ -128,9 +128,19 @@ module ShellHelpers
 				end
 			end
 
+			#stolen from ptools (https://github.com/djberg96/ptools/blob/master/lib/ptools.rb)
+			def binary?
+				bytes = stat.blksize
+				bytes = 4096 if bytes > 4096
+				s = read(bytes) || ""
+				s = s.encode('US-ASCII', :undef => :replace).split(//)
+				((s.size - s.grep(" ".."~").size) / s.size.to_f) > 0.30
+			end
+
 			#return true if the file is a text
 			def text?
-				!! %x/file #{self.to_s}/.match(/text/)
+				#!! %x/file #{self.to_s}/.match(/text/)
+				!binary?
 			end
 
 			#taken from facets/split_all
