@@ -132,8 +132,9 @@ module ShellHelpers
 			def binary?
 				bytes = stat.blksize
 				bytes = 4096 if bytes > 4096
-				s = read(bytes) || ""
-				s = s.encode('US-ASCII', :undef => :replace).split(//)
+				s = read(bytes, bytes) || ""
+				#s = s.encode('US-ASCII', :undef => :replace).split(//)
+				s=s.split(//)
 				((s.size - s.grep(" ".."~").size) / s.size.to_f) > 0.30
 			end
 
