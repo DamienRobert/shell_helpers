@@ -1,6 +1,6 @@
 # vim: foldmethod=marker
-#from methadone (error.rb, exit_now.rb, process_status.rb, run.rb; last
-#import v1.3.1-2-g9be3b5a)
+#from methadone (error.rb, exit_now.rb, process_status.rb, run.rb;
+#last import 4626a2bca9b6e54077a06a0f8e11a04fadc6e7ae, 2017-01-19
 require 'shell_helpers/logger'
 require 'shell_helpers/run'
 begin

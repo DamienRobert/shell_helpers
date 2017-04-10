@@ -1,5 +1,5 @@
 # vim: foldmethod=marker
-#From methadone (cli_logger.rb, cli_logging.rb, last import: v1.3.1-2-g9be3b5a)
+#From methadone (cli_logger.rb, cli_logging.rb, last import: 4626a2bca9b6e54077a06a0f8e11a04fadc6e7ae; 2017-01-19)
 require 'logger'
 
 module ShellHelpers
@@ -86,16 +86,21 @@ module ShellHelpers
 		# By default, this is Logger::Severity::WARN
 		# +error_device+:: device where all error messages should go.
 		def initialize(log_device=$stdout,error_device=$stderr,
-									 split_log:log_device.tty? && error_device.tty?)
+									 split_log: :auto)
 			@stderr_logger = Logger.new(error_device)
-			@split_logs = split_log
+
 			super(log_device)
+
+			log_device_tty	 = tty?(log_device)
+			error_device_tty = tty?(error_device)
+
+			@split_logs = log_device_tty && error_device_tty if split_log==:auto
 
 			self.level = Logger::Severity::INFO
 			@stderr_logger.level = DEFAULT_ERROR_LEVEL
 
-			self.formatter = BLANK_FORMAT if log_device.tty?
-			@stderr_logger.formatter = BLANK_FORMAT if error_device.tty?
+			self.formatter = BLANK_FORMAT if log_device_tty
+			@stderr_logger.formatter = BLANK_FORMAT if error_device_tty
 		end
 
 		def level=(level)
@@ -119,6 +124,13 @@ module ShellHelpers
 		# +formatter+:: Proc that handles the formatting, the same as for #formatter=
 		def error_formatter=(formatter)
 			@stderr_logger.formatter=formatter
+		end
+
+	private
+
+		def tty?(device_or_string)
+			return device_or_string.tty? if device_or_string.respond_to? :tty?
+			false
 		end
 
 	end
@@ -176,7 +188,7 @@ module ShellHelpers
 		def change_logger(new_logger)
 			raise ArgumentError,"Logger may not be nil" if new_logger.nil?
 			@@logger = new_logger
-			@@logger.level = @log_level if @log_level
+			@@logger.level = @log_level if defined?(@log_level) && @log_level
 		end
 
 		alias logger= change_logger
@@ -200,6 +212,27 @@ module ShellHelpers
 				definee.send(*args, &block)
 			else
 				definee.send(*args, **opts, &block)
+			end
+		end
+
+		private def toggle_log_level
+			@log_level_original = logger.level unless @log_level_toggled
+			logger.level = if @log_level_toggled
+											 @log_level_original
+										 else
+											 LOG_LEVELS['debug']
+										 end
+			@log_level_toggled = !@log_level_toggled
+			@log_level = logger.level
+		end
+
+		#call Logger.setup_toggle_trap('USR1') to change the log level to
+		#:debug when USR1 is received
+		def self.setup_toggle_trap(signal)
+			if signal
+				Signal.trap(signal) do
+					toggle_log_level
+				end
 			end
 		end
 
