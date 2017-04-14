@@ -11,14 +11,17 @@ module ShellHelpers
 			return Open3.capture3(*command)
 		end
 
-		def run_output(*command)
+		#Only capture output
+		def output_of(*command)
 			stdout,_status = Open3.capture2(*command)
+			yield stdout, _status if block_given?
 			return stdout
 		end
 
-		def run_status(*command)
+		def status_of(*command)
 			_stdout,_stderr,status = run_command(*command)
 			return status.success?
+			yield _stdout, _stderr, status if block_given?
 			#system(*command)
 			#return $?.dup
 		end
@@ -32,7 +35,6 @@ module ShellHelpers
 			end
 			r
 		end
-
 
 		#a simple wrapper for %x//
 		def run_simple(*command, quiet: false, fail_mode: :error, chomp: false)
@@ -61,16 +63,38 @@ module ShellHelpers
 		end
 
 		#capture stdout and status, silence stderr
-		def run(*args)
+		def run(*command, output: :capture, error: nil, fail_mode: :error)
+			if command.length > 1
+				launch=command.shelljoin
+			else
+				launch=command.first
+			end
+			launch+=" 2>/dev/null" if error==:quiet
+			launch+=" >/dev/null" if output==:quiet
+
 			begin
-				if Open3.respond_to?(:capture3) then
-					out, _error, status=Open3.capture3(*args)
-					return out, status.success?
+				if error==:capture
+					out, error, status=Open3.capture3(launch)
+					return out, error, status
+				elsif output==:capture
+					out, status=Open3.capture2(launch)
+					return out, status
 				else
-					out = `#{args.shelljoin} 2>/dev/null`
+					system(launch)
 					status=$?
-					return out, status.success?
+					return status
 				end
+			rescue => e
+				status=false
+				case fail_mode
+				when :error
+					raise e
+				when :empty
+					out=""
+				when :nil
+					out=nil
+				end
+				return out, status
 			end
 		end
 
@@ -91,10 +115,12 @@ module ShellHelpers
 				end
 			end
 
+			#TODO: handle non default options, 'error: :capture' would imply we
+			#need to return "", "", false
 			def run(*command)
 				if !@interrupted
 					begin
-						return DR::Run.run(*args)
+						return DR::Run.run(*command)
 					rescue Interrupt #interruption
 						@interrupted=true
 						return "", false
