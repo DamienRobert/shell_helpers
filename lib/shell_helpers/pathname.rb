@@ -130,6 +130,7 @@ module ShellHelpers
 
 			#stolen from ptools (https://github.com/djberg96/ptools/blob/master/lib/ptools.rb)
 			def binary?
+				return false if directory?
 				bytes = stat.blksize
 				bytes = 4096 if bytes > 4096
 				s = read(bytes, bytes) || ""
@@ -141,6 +142,7 @@ module ShellHelpers
 			#return true if the file is a text
 			def text?
 				#!! %x/file #{self.to_s}/.match(/text/)
+				return false if directory?
 				!binary?
 			end
 
