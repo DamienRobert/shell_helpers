@@ -174,12 +174,13 @@ module ShellHelpers
 			path.map { |dir| Pathname.glob(dir+pattern) }.flatten
 		end
 
-		def rsync(*files, out, preserve: true, partial: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, **opts)
+		def rsync(*files, out, preserve: true, partial: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, **opts)
 			require 'shell_helpers/sh'
 			rsync_opts=opts.delete(:rsync_opts) || []
 			rsync_opts << "-vaczP" if preserve
 			rsync_opts << "-P" if partial #--partial --progress
 			rsync_opts+=%w(--no-owner --no-group) if preserve==:nochown
+			rsync_opts+=["--chown", chown] if chown
 			#on dest: do not replace a symlink to a directory with the real directory
 			#use --copy-dirlinks for the same usage on source
 			rsync_opts << "--keep-dirlinks" if keep_dirlinks
