@@ -39,9 +39,9 @@ module ShellHelpers
 	module LogHelper
 		include CLILogging
 		CLILogging.logger.progname||=$0
-		#Activates Sh.sh with logging
+		#Activates Sh.sh in klass
 		def self.included(klass)
-			klass.const_set(:Sh,ShellHelpers::ShLog)
+			klass.const_set(:Sh,ShellHelpers::Sh)
 		end
 	end
 end
