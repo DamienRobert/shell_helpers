@@ -17,7 +17,7 @@ end
 module ShellHelpers
 	# ExitNow {{{
 	# Standard exception you can throw to exit with a given status code.
-	# Generally, you should prefer DR::ExitNow.exit_now! over using this
+	# Generally, you should prefer SH::ExitNow.exit_now! over using this
 	# directly, however you may wish to create a rich hierarchy of exceptions
 	# that extend from this in your app, so this is provided if you wish to
 	# do so.
@@ -126,7 +126,7 @@ module ShellHelpers
 		#			name: pretty name of command
 		#			on_success,on_failure: blocks to call on success/failure
 		# block:: if provided, will be called if the command exited nonzero.	The block may take 0, 1, 2, or 3 arguments.
-		#					The arguments provided are the standard output as a string, standard error as a string, and the processstatus as DR::ProcessStatus
+		#					The arguments provided are the standard output as a string, standard error as a string, and the processstatus as SH::ProcessStatus
 		#					You should be safe to pass in a lambda instead of a block, as long as your lambda doesn't take more than three arguments
 		#
 		# Example
@@ -163,7 +163,7 @@ module ShellHelpers
 			when :exec
 				exec(env,*args,spawn_opts)
 			when :capture
-				DR::Run.run_command(env,*args,spawn_opts)
+				SH::Run.run_command(env,*args,spawn_opts)
 			end
 		end
 
@@ -217,7 +217,7 @@ module ShellHelpers
 
 		# Run a command, throwing an exception if the command exited nonzero.
 		# Otherwise, behaves exactly like #sh.
-		# Raises DR::FailedCommandError if the command exited nonzero.
+		# Raises SH::FailedCommandError if the command exited nonzero.
 		# Examples:
 		#
 		#			sh!("rsync foo bar")
@@ -260,7 +260,7 @@ module ShellHelpers
 
 		def sh_logger
 			@sh_logger ||= begin
-				raise StandardError, "No logger set! Please include DR::CLILogging
+				raise StandardError, "No logger set! Please include SH::CLILogging
 ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 				self.logger
 			end
