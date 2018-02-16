@@ -172,7 +172,7 @@ module ShellHelpers
 			curopts=defaults.dup
 			defaults.keys.each do |k|
 				v=opts.delete(k)
-				curopts[k]=v if v
+				curopts[k]=v unless v.nil?
 			end
 
 			log=curopts[:log]
