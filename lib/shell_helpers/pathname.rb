@@ -107,6 +107,22 @@ module ShellHelpers
 				end
 			end
 
+			def components
+				each_filename.to_a
+			end
+			def depth
+				each_filename.count
+			end
+
+			def entries(filter: true)
+				c=super()
+				if filter
+					c.reject {|c| c.to_s=="." or c.to_s==".."}
+				else
+					c
+				end
+			end
+
 			#Pathname.new("foo")+"bar" return "foo/bar"
 			#Pathname.new("foo").append_name("bar") return "foobar"
 			def append_name(*args,join:'')
@@ -215,6 +231,9 @@ module ShellHelpers
 
 			#path from self to target (warning: we always assume that we are one
 			#level up self, except if inside is true)
+			# bar=SH::Pathname.new("foo/bar"); baz=SH::Pathname.new("foo/baz")
+			# bar.rel_path_to(baz)  #<ShellHelpers::Pathname:baz>
+			# bar.rel_path_to(baz, inside: true) #<ShellHelpers::Pathname:../baz>
 			#note: there is no real sense to use mode: :rel here, but we don't
 			#prevent it
 			def rel_path_to(target=self.class.pwd, base: self.class.pwd, mode: :rel, clean_mode: :abs_clean, inside: false, **opts)
