@@ -284,5 +284,14 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 		@default_sh_options=default_sh_options
 		@default_sh_options[:log]=false
 	end
+
+	module ShDryRun
+		include Sh
+		extend self
+		@default_sh_options=default_sh_options
+		@default_sh_options[:log]=true
+		@default_sh_options[:log_level_execute]=:info
+		@default_sh_options[:dryrun]=true
+	end
 	# }}}
 end
