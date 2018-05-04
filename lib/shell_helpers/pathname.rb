@@ -356,6 +356,14 @@ module ShellHelpers
 					self.class.fu_class.public_send(method,self,*args,&b)
 				end
 			end
+
+			# we rewrap chdir this way, so that the argument stays a SH::Pathname
+			def chdir(*args)
+				self.class.fu_class.public_send(:chdir, self, *args) do |dir|
+					yield self.class.new(dir)
+				end
+			end
+
 			#These methods are of the form FileUtils.chmod paramater, file
 			[:chmod, :chmod_R].each do |method|
 				define_method method do |*args,&b|
