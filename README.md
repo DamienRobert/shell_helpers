@@ -53,7 +53,7 @@
 
 ## Copyright
 
-Copyright © 2015–2017 Damien Robert
+Copyright © 2015–2018 Damien Robert
 
 MIT License. See {file:LICENSE.txt} for details.
 
