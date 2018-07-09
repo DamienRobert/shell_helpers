@@ -174,10 +174,11 @@ module ShellHelpers
 			path.map { |dir| Pathname.glob(dir+pattern) }.flatten
 		end
 
-		def rsync(*files, out, preserve: true, partial: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, **opts)
+		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, **opts)
 			require 'shell_helpers/sh'
-			rsync_opts=opts.delete(:rsync_opts) || []
-			rsync_opts << "-vacz" if preserve
+			rsync_opts=[*opts.delete(:rsync_opts)] || []
+			rsync_opts << default_opts
+			rsync_opts << "-a" if preserve
 			rsync_opts << "-P" if partial #--partial --progress
 			rsync_opts+=%w(--no-owner --no-group) if preserve==:nochown
 			rsync_opts+=["--chown", chown] if chown
@@ -200,6 +201,7 @@ module ShellHelpers
 				rsync_opts << "--backup"
 				rsync_opts << (backup.to_s[-1]=="/" ? "--backup-dir=#{backup}" : "--suffix=#{backup}") unless backup==true
 			end
+			rsync_opts+=opts.delete(:rsync_late_opts)||[]
 			Sh.sh( (sudo ? ["sudo"] : [])+["rsync"]+rsync_opts+files.map(&:to_s)+[out.to_s], expected: expected, **opts)
 			#expected: rsync error code 23 is some files/attrs were not transferred
 		end
