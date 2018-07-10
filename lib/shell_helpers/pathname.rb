@@ -351,9 +351,16 @@ module ShellHelpers
 			extend FUClass
 			#wrapper around FileUtils
 			#For instance Pathname#rmdir uses Dir.rmdir, but the rmdir from FileUtils is a wrapper around Dir.rmdir that accepts extra options
-			[:chdir, :rmdir, :mkdir, :chown, :chown_R, :cmp, :touch, :rm, :rm_r, :uptodate?, :cmp, :cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
+			[:chdir, :rmdir, :mkdir, :cmp, :touch, :rm, :rm_r, :uptodate?, :cmp, :cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
 				define_method method do |*args,&b|
 					self.class.fu_class.public_send(method,self,*args,&b)
+				end
+			end
+			# for these the path argument goes last
+			[:chown, :chown_R].each do |method|
+				define_method method do |*args,**opts,&b|
+					require 'pry'; binding.pry
+					self.class.fu_class.public_send(method,*args,self.to_path,&b)
 				end
 			end
 
