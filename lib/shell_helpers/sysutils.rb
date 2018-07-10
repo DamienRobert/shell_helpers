@@ -18,23 +18,24 @@ module ShellHelpers
   	#   :partuuid=>"f4eef373-0803-4701-bd47-b968c44065a6"}
 
 		def parse_blkid(output)
-			devs=[]
+			devs={}
 			r=[]
 			convert=lambda do |h|
 				h[:type] && h[:fstype]=h.delete(:type)
-				h
+				name=h[:devname]
+				devs[name]=h
 			end
 			output=output.each_line if output.is_a?(String)
 			output.each do |l|
 				l=l.chomp
 				if l.empty?
-					devs << convert.(Export.import_parse(r))
+					convert.(Export.import_parse(r))
 					r=[]
 				else
 					r<<l
 				end
 			end
-			devs << convert.(Export.import_parse(r)) unless r.empty?
+			convert.(Export.import_parse(r)) unless r.empty?
 			devs
 		end
 
@@ -47,7 +48,8 @@ module ShellHelpers
 			fsoptions,_suc=Run.run_simple("lsblk -l -J -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true)
 			require 'json'
 			json=JSON.parse(fsoptions)
-			json["blockdevices"]&.map do |props|
+			fs={}
+			json["blockdevices"]&.each do |props|
 				r={}
 				props.each do |k,v|
 					k=k.to_sym
@@ -58,38 +60,59 @@ module ShellHelpers
 					end
 					r[k]=v unless v.nil?
 				end
-				r
+				fs[r[:devname]]=r
 			end
+			fs
 		end
 
 		def findmnt
 			fsoptions,_suc=SH::Run.run_simple("findmnt --raw -o SOURCE,TARGET,FSTYPE,OPTIONS,LABEL,UUID,PARTLABEL,PARTUUID,FSROOT", fail_mode: :empty, chomp: true)
-			fs=[]
+			fs={}
 			fsoptions.each_line.to_a[1..-1]&.each do |l|
 				#two '	' means a missing option, so we want to split on / /, not on ' '
 				source,target,fstype,options,label,uuid,partlabel,partuuid,fsroot=l.chomp.split(/ /)
 				next unless source=~%r(^/dev/) #skip non dev mountpoints
 				options=options.split(',')
-				fs << {mountpoint: target, devname: source, type: fstype, mountoptions: options, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, fsroot: fsroot}
+				fs[source]={mountpoint: target, devname: source, type: fstype, mountoptions: options, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, fsroot: fsroot}
 			end
 			fs
+		end
+		
+		def fs_infos
+			blkid.merge(findmnt).merge(lsblk)
 		end
 
 		def refresh_blkid_cache
 			Sh.sh("sudo blkid")
 		end
 
-		def find_devices(props)
+		def find_devices(props, method: :blkid)
 			return [props[:devname]] unless props[:devname].nil?
 			# search from most discriminant to less discriminant
-			%i(uuid label partuuid partlabel type).each do |key|
-				if (label=props[key])
-					return parse_blkid(%x/blkid -o export -t #{key.to_s.upcase}=#{label.shellescape}/)
+			if method==:blkid
+				# Warning, since 'blkid' can only test one label, we cannot check
+				# that all parameters are valid
+				%i(uuid label partuuid partlabel type).each do |key|
+					if (label=props[key])
+						return parse_blkid(%x/blkid -o export -t #{key.to_s.upcase}=#{label.shellescape}/).values
+					end
 				end
-			end
-			# unfortunately `blkid PARTTYPE=...` does not work, so we need to parse
-			# ourselves
-			if label=props[:parttype]
+				# unfortunately `blkid PARTTYPE=...` does not work, so we need to parse
+				# ourselves
+				if props[:parttype]
+					find_devices(props, method: :all)
+				end
+			else
+				fs=fs_infos
+				return fs.keys.select do |k|
+					fsprops=fs[k]
+					# here we check all parameters
+					%i(uuid label partuuid partlabel parttype type).all? do |key|
+						ptype=props[key]
+						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
+						!ptype or ptype==fsprops[key]
+					end
+				end.map {|k| fs[k]}
 			end
 			return []
 		end
