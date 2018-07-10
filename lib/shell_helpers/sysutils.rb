@@ -38,7 +38,7 @@ module ShellHelpers
 		end
 
 		def find_devices(props)
-			return props[:devname] unless props[:devname].nil?
+			return [props[:devname]] unless props[:devname].nil?
 			# search from most discriminant to less discriminant
 			%i(uuid label partuuid partlabel type).each do |key|
 				if (label=props[key])
@@ -51,7 +51,13 @@ module ShellHelpers
 		def find_device(props)
 			devs=find_devices(props)
 			devs=yield(devs) if block_given?
-			return [devs].flatten.first.fetch(:devname)
+			return [devs].flatten.first&.fetch(:devname)
+		end
+
+		def find_disk_part(disk, props)
+			find_device(props) do |devs|
+				devs.select {|dev| dev[:devname].start_with?(disk)}
+			end
 		end
 
 		def mount(*paths, mkpath: true, abort_on_error: true)
@@ -72,42 +78,48 @@ module ShellHelpers
 			end
 		end
 
+		def partition_type(type, mode: :guid)
+			case type
+			when :boot
+				mode == :hexa ? "ef00" : "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+			when :swap
+				mode == :hexa ? "8200" : "0657fd6d-a4ab-43c4-84e5-0933c84b4f4f"
+			when :home
+				mode == :hexa ? "8302" : "933ac7e1-2eb4-4f13-b844-0e14e2aef915"
+			when :x86_root
+				mode == :hexa ? "8303" : "44479540-f297-41b2-9af7-d131d5f0458a"
+			when :"x86-64_root"
+				mode == :hexa ? "8304" : "4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
+			when :arm64_root
+				mode == :hexa ? "8305" : "b921b045-1df0-41c3-af44-4c6f280d3fae"
+			when :arm32_root
+				mode == :hexa ? "8307" : "69dad710-2ce4-4e3c-b16c-21a1d49abed3"
+			when :linux
+				mode == :hexa ? "8300" : "0fc63daf-8483-4772-8e79-3d69d8477de4"
+			end
+		end
+
 		def make_partitions(disk, *partitions)
 			opts=[]
 			partitions.each do |partition|
-				num=partition[:num]&.to_i || 0
-				start=partition[:start] || 0
-				length=partition[:length] || 0
-				name=partition[:name]
-				type=partition[:type]
-				attributes=partition[:attributes]
-				alignment=partition[:alignment]
-				case type
-				when :boot
-					type="ef00"
-					attributes=2
-				when :swap
-					type="8200"
-				when :home
-					type="8302"
-				when :x86_root
-					type="8303"
-				when :"x86-64_root"
-					type="8304"
-				when :arm64_root
-					type="8305"
-				when :arm32_root
-					type="8307"
-				when :linux
-					type="8300"
-				end
+				num=partition[:partnum]&.to_i || 0
+				start=partition[:partstart] || 0
+				length=partition[:partlength] || 0
+				name=partition[:partlabel] || partition[:name]
+				attributes=partition[:partattributes]
+				type=partition[:parttype]
+				attributes=2 if type==:boot
+				type=partition_type(type, mode: :hexa) if type.is_a?(Symbol)
+				uuid=partition[:partuuid]
+				alignment=partition[:partalignment]
 				opts += ["-n", "#{num}:#{start}:#{length}"]
 				opts += ["-c", "#{num}:#{name}"] if name
 				opts += ["-t", "#{num}:#{type}"] if type
+				opts += ["-u", "#{num}:#{uuid}"] if uuid
 				opts << "--attributes=#{num}:set:#{attributes}" if attributes
 				opts << ["--set-alignment=#{alignment}"] if alignment
 			end
-			Sh.sh("echo sudo sgdisk #{opts.shelljoin} #{disk.shellescape}")
+			Sh.sh!("sudo sgdisk #{opts.shelljoin} #{disk.shellescape}")
 		end
 
 		def zap_partitions(disk)
@@ -117,6 +129,15 @@ module ShellHelpers
 		def wipe(disk)
 			# wipe all signatures
 			Sh.sh("sudo wipefs -a #{disk.shellescape}")
+		end
+
+		def make_fs(disk, fs)
+			fs.each do |partfs|
+				dev=SH.find_disk_part(disk, partfs)
+				if dev and (fstype=partfs[:fs])
+					SH.sh("echo sudo mkfs.#{fstype.shellescape} #{opts.shelljoin} #{dev.shellescape}")
+				end
+			end
 		end
 
 		def make_raw_image(name, size="1G")
