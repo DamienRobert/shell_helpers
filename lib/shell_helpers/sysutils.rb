@@ -86,13 +86,13 @@ module ShellHelpers
 			Sh.sh("sudo blkid")
 		end
 
-		def find_devices(props, method: :blkid)
+		def find_devices(props, method: :all)
 			return [props[:devname]] unless props[:devname].nil?
 			# search from most discriminant to less discriminant
 			if method==:blkid
 				# Warning, since 'blkid' can only test one label, we cannot check
 				# that all parameters are valid
-				%i(uuid label partuuid partlabel type).each do |key|
+				%i(uuid label partuuid partlabel).each do |key|
 					if (label=props[key])
 						return parse_blkid(%x/blkid -o export -t #{key.to_s.upcase}=#{label.shellescape}/).values
 					end
@@ -104,10 +104,13 @@ module ShellHelpers
 				end
 			else
 				fs=fs_infos
+				# here we check all parameters
+				# however, if none are defined, this return true, so we check that at least one is defined
+				return [] unless %i(uuid label partuuid partlabel parttype).any? {|k| props[k]}
 				return fs.keys.select do |k|
 					fsprops=fs[k]
-					# here we check all parameters
-					%i(uuid label partuuid partlabel parttype type).all? do |key|
+					next false if (disk=props[:disk]) && !fsprops[:devname].start_with?(disk)
+					%i(uuid label partuuid partlabel parttype).all? do |key|
 						ptype=props[key]
 						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
 						!ptype or ptype==fsprops[key]
@@ -123,13 +126,8 @@ module ShellHelpers
 			return [devs].flatten.first&.fetch(:devname)
 		end
 
-		def find_disk_part(disk, props)
-			find_device(props) do |devs|
-				devs.select {|dev| dev[:devname].start_with?(disk)}
-			end
-		end
-
-		def mount(*paths, mkpath: true, abort_on_error: true)
+		def mount(paths, mkpath: true, abort_on_error: true)
+			paths=paths.values if paths.is_a?(Hash)
 			paths.each do |path|
 				dev=find_device(path)
 				options=path[:mountoptions]||[]
@@ -140,7 +138,8 @@ module ShellHelpers
 			end
 		end
 
-		def umount(*paths)
+		def umount(paths)
+			paths=paths.values if paths.is_a?(Hash)
 			paths.reverse.each do |path|
 				mntpoint=path[:mountpoint]
 				Sh.sh("sudo umount #{mntpoint.shellescape}")
@@ -168,27 +167,33 @@ module ShellHelpers
 			end
 		end
 
-		def make_partitions(disk, *partitions)
+		def make_partitions(partitions)
 			opts=[]
-			partitions.each do |partition|
-				num=partition[:partnum]&.to_i || 0
-				start=partition[:partstart] || 0
-				length=partition[:partlength] || 0
-				name=partition[:partlabel] || partition[:name]
-				attributes=partition[:partattributes]
-				type=partition[:parttype]
-				attributes=2 if type==:boot
-				type=partition_type(type, mode: :hexa) if type.is_a?(Symbol)
-				uuid=partition[:partuuid]
-				alignment=partition[:partalignment]
-				opts += ["-n", "#{num}:#{start}:#{length}"]
-				opts += ["-c", "#{num}:#{name}"] if name
-				opts += ["-t", "#{num}:#{type}"] if type
-				opts += ["-u", "#{num}:#{uuid}"] if uuid
-				opts << "--attributes=#{num}:set:#{attributes}" if attributes
-				opts << ["--set-alignment=#{alignment}"] if alignment
+			partitions=partitions.values if partitions.is_a?(Hash)
+			disk_partitions=partitions.group_by {|p| p[:disk]}
+			disk_partitions.each do |disk, dpartitions|
+				next if disk.nil?
+				dpartitions.each do |partition|
+					num=partition[:partnum]&.to_i || 0
+					start=partition[:partstart] || 0
+					length=partition[:partlength] || 0
+					name=partition[:partlabel] || partition[:name]
+					attributes=partition[:partattributes]
+					type=partition[:parttype]
+					attributes=2 if type==:boot
+					type=partition_type(type, mode: :hexa) if type.is_a?(Symbol)
+					uuid=partition[:partuuid]
+					alignment=partition[:partalignment]
+					opts += ["-n", "#{num}:#{start}:#{length}"]
+					opts += ["-c", "#{num}:#{name}"] if name
+					opts += ["-t", "#{num}:#{type}"] if type
+					opts += ["-u", "#{num}:#{uuid}"] if uuid
+					opts << "--attributes=#{num}:set:#{attributes}" if attributes
+					opts << ["--set-alignment=#{alignment}"] if alignment
+				end
+				Sh.sh!("sudo sgdisk #{opts.shelljoin} #{disk.shellescape}")
 			end
-			Sh.sh!("sudo sgdisk #{opts.shelljoin} #{disk.shellescape}")
+			disk_partitions
 		end
 
 		def zap_partitions(disk)
@@ -200,10 +205,11 @@ module ShellHelpers
 			Sh.sh("sudo wipefs -a #{disk.shellescape}")
 		end
 
-		def make_fs(disk, fs)
+		def make_fs(fs)
 			fs.each do |partfs|
-				dev=SH.find_disk_part(disk, partfs)
-				if dev and (fstype=partfs[:fs])
+				dev=SH.find_disk_part(partfs)
+				if dev and (fstype=partfs[:fstype])
+					opts=partfs[:fsoptions]||[]
 					SH.sh("echo sudo mkfs.#{fstype.shellescape} #{opts.shelljoin} #{dev.shellescape}")
 				end
 			end
