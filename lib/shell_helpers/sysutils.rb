@@ -33,6 +33,28 @@ module ShellHelpers
 			devs
 		end
 
+		def lsblk
+			fsoptions,_suc=Run.run_simple("lsblk -l -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true)
+			fs=[]
+			fsoptions.each_line.to_a[1..-1]&.each do |l|
+				devname, mountpoint, label, uuid, partlabel, partuuid, parttype, devtype, fstype =l.chomp.split(/ /)
+				# we change a bit the names to be compatible with blkid
+				fs << {devname: devname, mntpoint: mountpoint, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, parttype: parttype, devtype: devtype, type: fstype}
+			end
+			fs
+		end
+
+		def findmnt
+			fsoptions,_suc=SH::Run.run_simple("findmnt --raw -o SOURCE,TARGET,FSTYPE,OPTIONS,LABEL,UUID,PARTLABEL,PARTUUID,FSROOT", fail_mode: :empty, chomp: true)
+			fs=[]
+			fsoptions.each_line.to_a[1..-1]&.each do |l|
+				#two '	' means a missing option, so we want to split on / /, not on ' '
+				source,target,fstype,options,label,uuid,partlabel,partuuid,fsroot=l.chomp.split(/ /)
+				options=options.split(',')
+				fs << {mntpoint: target, source: source, type: fstype, mntoptions: options, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, fsroot: fsroot}
+			end
+		end
+
 		def refresh_blkid_cache
 			Sh.sh("sudo blkid")
 		end
@@ -44,6 +66,10 @@ module ShellHelpers
 				if (label=props[key])
 					return parse_blkid(%x/blkid -o export -t #{key.to_s.upcase}=#{label.shellescape}/)
 				end
+			end
+			# unfortunately `blkid PARTTYPE=...` does not work, so we need to parse
+			# ourselves
+			if label=props[:parttype]
 			end
 			return []
 		end
