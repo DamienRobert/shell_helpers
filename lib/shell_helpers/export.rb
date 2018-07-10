@@ -4,6 +4,8 @@ require 'dr/parse/simple_parser'
 module ShellHelpers
 	module Export
 		extend self
+		ImportError=Class.new(StandardError)
+		ExportError=Class.new(StandardError)
 
 		#export a value for SHELL consumption
 		def export_value(v)
@@ -155,7 +157,11 @@ module ShellHelpers
 				else
 					name,value=import_variable(namevalue)
 				end
-				r.set_keyed_value(name,value, sep: var_separator)
+				if name
+					r.set_keyed_value(name,value, sep: var_separator)
+				else
+					raise ImportError.new("Cannot parse #{s}")
+				end
 			end
 			r
 		end

@@ -11,6 +11,7 @@ require 'shell_helpers/logger'
 require 'shell_helpers/run'
 require 'shell_helpers/sh'
 require 'shell_helpers/utils'
+require 'shell_helpers/sysutils'
 require 'shell_helpers/export'
 require 'shell_helpers/pathname'
 
@@ -20,7 +21,8 @@ module ShellHelpers
 	include ExitNow #exit_now!
 	include Sh #sh, sh!
 	include Export #export
-	include Utils #find, run_pager
+	include Utils #find, run_pager, rsync...
+	include SysUtils #mount, find_devices...
 	extend self
 	#activates debug mode
 	def self.debug(level=Logger::DEBUG)

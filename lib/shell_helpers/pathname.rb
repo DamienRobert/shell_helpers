@@ -31,6 +31,11 @@ module ShellHelpers
 			end
 			alias_method :rm_rf, :rmtree
 
+			def shellescape
+				require 'shellwords'
+				to_s.shellescape
+			end
+
 			#use the low level FileUtils feature to copy the metadata
 			#if passed a dir just copy the dir metadata, not the directory recursively
 			#Note this differs from FileUtils.copy_entry who copy directories recursively
