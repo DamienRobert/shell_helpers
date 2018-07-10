@@ -20,28 +20,46 @@ module ShellHelpers
 		def parse_blkid(output)
 			devs=[]
 			r=[]
-			output.each_line do |l|
+			convert=lambda do |h|
+				h[:type] && h[:fstype]=h.delete(:type)
+				h
+			end
+			output=output.each_line if output.is_a?(String)
+			output.each do |l|
 				l=l.chomp
 				if l.empty?
-					devs << Export.import_parse(r)
+					devs << convert.(Export.import_parse(r))
 					r=[]
 				else
 					r<<l
 				end
 			end
-			devs << Export.import_parse(r) unless r.empty?
+			devs << convert.(Export.import_parse(r)) unless r.empty?
 			devs
 		end
 
+		def blkid
+			fsoptions,_suc=Run.run_simple("blkid -o export", fail_mode: :empty, chomp: true)
+			parse_blkid(fsoptions)
+		end
+
 		def lsblk
-			fsoptions,_suc=Run.run_simple("lsblk -l -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true)
-			fs=[]
-			fsoptions.each_line.to_a[1..-1]&.each do |l|
-				devname, mountpoint, label, uuid, partlabel, partuuid, parttype, devtype, fstype =l.chomp.split(/ /)
-				# we change a bit the names to be compatible with blkid
-				fs << {devname: devname, mntpoint: mountpoint, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, parttype: parttype, devtype: devtype, type: fstype}
+			fsoptions,_suc=Run.run_simple("lsblk -l -J -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true)
+			require 'json'
+			json=JSON.parse(fsoptions)
+			json["blockdevices"]&.map do |props|
+				r={}
+				props.each do |k,v|
+					k=k.to_sym
+					k=:devtype if k==:type
+					if k==:name
+						k=:devname
+						v="/dev/#{v}"
+					end
+					r[k]=v unless v.nil?
+				end
+				r
 			end
-			fs
 		end
 
 		def findmnt
@@ -50,9 +68,11 @@ module ShellHelpers
 			fsoptions.each_line.to_a[1..-1]&.each do |l|
 				#two '	' means a missing option, so we want to split on / /, not on ' '
 				source,target,fstype,options,label,uuid,partlabel,partuuid,fsroot=l.chomp.split(/ /)
+				next unless source=~%r(^/dev/) #skip non dev mountpoints
 				options=options.split(',')
-				fs << {mntpoint: target, source: source, type: fstype, mntoptions: options, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, fsroot: fsroot}
+				fs << {mountpoint: target, devname: source, type: fstype, mountoptions: options, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, fsroot: fsroot}
 			end
+			fs
 		end
 
 		def refresh_blkid_cache
@@ -89,8 +109,8 @@ module ShellHelpers
 		def mount(*paths, mkpath: true, abort_on_error: true)
 			paths.each do |path|
 				dev=find_device(path)
-				options=path[:mntoptions]||[]
-				mntpoint=path[:mntpoint]
+				options=path[:mountoptions]||[]
+				mntpoint=path[:mountpoint]
 				Sh.sh("sudo mkdir -p #{mntpoint.shellescape}") if mkpath
 				cmd="sudo mount #{options.empty? ? "" : "-o #{options.join(',').shellescape}"} #{dev.shellescape} #{mntpoint.shellescape}"
 				abort_on_error ? Sh.sh!(cmd) : Sh.sh(cmd)
@@ -99,7 +119,7 @@ module ShellHelpers
 
 		def umount(*paths)
 			paths.reverse.each do |path|
-				mntpoint=path[:mntpoint]
+				mntpoint=path[:mountpoint]
 				Sh.sh("sudo umount #{mntpoint.shellescape}")
 			end
 		end
