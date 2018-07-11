@@ -142,15 +142,8 @@ module ShellHelpers
 		def mount(paths, mkpath: true, abort_on_error: true, sort: true)
 			paths=paths.values if paths.is_a?(Hash)
 			paths=paths.select {|p| p[:mountpoint]}
-			if sort
-				# sort so that the mounts are in correct order
-				paths.sort! do |p1, p2|
-					return 1 if Pathname.new(p1[:mountpoint]).ascend.include?(Pathname.new(p2[:mountpoint]))
-					return -1 if Pathname.new(p2[:mountpoint]).ascend.include?(Pathname.new(p1[:mountpoint]))
-					0
-				end
-			end
-			return paths
+			# sort so that the mounts are in correct order
+			paths.sort! { |p1, p2| Pathname.new(p1[:mountpoint]) <=> Pathname.new(p2[:mountpoint]) } if sort
 			paths.each do |path|
 				dev=find_device(path)
 				options=path[:mountoptions]||[]
@@ -162,8 +155,10 @@ module ShellHelpers
 			paths
 		end
 
-		def umount(paths)
+		def umount(paths, sort: true)
 			paths=paths.values if paths.is_a?(Hash)
+			paths=paths.select {|p| p[:mountpoint]}
+			paths.sort! { |p1, p2| Pathname.new(p1[:mountpoint]) <=> Pathname.new(p2[:mountpoint]) } if sort
 			paths.reverse.each do |path|
 				mntpoint=path[:mountpoint]
 				Sh.sh("sudo umount #{mntpoint.shellescape}")
