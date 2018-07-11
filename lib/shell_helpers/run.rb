@@ -5,6 +5,13 @@ require 'shellwords'
 module ShellHelpers
 	module Run #{{{
 		extend(self)
+
+		def sudo_args(sudoarg)
+			return "" unless sudoarg
+			return sudoarg if sudoarg.is_a?(String)
+			"sudo"
+		end
+
 		#the run_* commands here capture all the output
 		def run_command(*command)
 			#stdout, stderr, status
@@ -37,13 +44,14 @@ module ShellHelpers
 		end
 
 		#a simple wrapper for %x//
-		def run_simple(*command, quiet: false, fail_mode: :error, chomp: false)
+		def run_simple(*command, quiet: false, fail_mode: :error, chomp: false, sudo: false)
 			if command.length > 1
 				launch=command.shelljoin
 			else
 				launch=command.first
 			end
 			launch+=" 2>/dev/null" if quiet
+			launch="#{sudo_args(sudo)} #{launch}"
 			begin
 				out = %x/#{launch}/
 				status=$?.success?
@@ -105,7 +113,7 @@ module ShellHelpers
 			def run_command(*args)
 				if !@interrupted
 					begin
-						DR::Run.run_command(*args)
+						Run.run_command(*args)
 					rescue Interrupt #interruption
 						@interrupted=true
 						return "", "", false
@@ -120,7 +128,7 @@ module ShellHelpers
 			def run(*command)
 				if !@interrupted
 					begin
-						return DR::Run.run(*command)
+						return Run.run(*command)
 					rescue Interrupt #interruption
 						@interrupted=true
 						return "", false

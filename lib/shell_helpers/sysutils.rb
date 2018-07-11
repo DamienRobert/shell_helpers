@@ -7,6 +7,7 @@ module ShellHelpers
 
 	module SysUtils
 		extend self
+		SysError=Class.new(StandardError)
 
 		# output should be the result of `blkid -o export ...`
 		# return a list of things like
@@ -39,13 +40,16 @@ module ShellHelpers
 			devs
 		end
 
-		def blkid
-			fsoptions,_suc=Run.run_simple("blkid -o export", fail_mode: :empty, chomp: true)
+		def blkid(*args, sudo: false)
+			# get devname, (part)label/uuid, fstype
+			fsoptions,_suc=Run.run_simple("blkid -o export #{args.shelljoin}", fail_mode: :empty, chomp: true, sudo: sudo)
 			parse_blkid(fsoptions)
 		end
 
-		def lsblk
-			fsoptions,_suc=Run.run_simple("lsblk -l -J -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true)
+		# use lsblk to get infos about devices
+		def lsblk(sudo: false)
+			# get devname, mountpoint, (part)label/uuid, (part/dev/fs)type
+			fsoptions,_suc=Run.run_simple("lsblk -l -J -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true, sudo: sudo)
 			require 'json'
 			json=JSON.parse(fsoptions)
 			fs={}
@@ -65,8 +69,12 @@ module ShellHelpers
 			fs
 		end
 
-		def findmnt
-			fsoptions,_suc=SH::Run.run_simple("findmnt --raw -o SOURCE,TARGET,FSTYPE,OPTIONS,LABEL,UUID,PARTLABEL,PARTUUID,FSROOT", fail_mode: :empty, chomp: true)
+		# use findmnt to get infos about mount points
+		def findmnt(sudo: false)
+			# get devname, mountpoint, mountoptions, (part)label/uuid, fsroot
+			# only looks at mounted devices (but in comparison to lsblk also show
+			# virtual mounts and bind mounts)
+			fsoptions,_suc=SH::Run.run_simple("findmnt --raw -o SOURCE,TARGET,FSTYPE,OPTIONS,LABEL,UUID,PARTLABEL,PARTUUID,FSROOT", fail_mode: :empty, chomp: true, sudo: sudo)
 			fs={}
 			fsoptions.each_line.to_a[1..-1]&.each do |l|
 				#two '	' means a missing option, so we want to split on / /, not on ' '
@@ -78,8 +86,10 @@ module ShellHelpers
 			fs
 		end
 		
-		def fs_infos
-			blkid.merge(findmnt).merge(lsblk)
+		def fs_infos(mode: :devices)
+			return findmnt if mode == :mount
+			return lsblk.merge(findmnt) if mode == :all
+			lsblk
 		end
 
 		def refresh_blkid_cache
@@ -123,11 +133,24 @@ module ShellHelpers
 		def find_device(props)
 			devs=find_devices(props)
 			devs=yield(devs) if block_given?
-			return [devs].flatten.first&.fetch(:devname)
+			devs=[devs].flatten
+			warn "Device #{props} not found" if devs.empty?
+			warn "Several devices #{props} found: #{devs.map {|d| d&.fetch(:devname)}}" if devs.length >1
+			return devs.first&.fetch(:devname)
 		end
 
-		def mount(paths, mkpath: true, abort_on_error: true)
+		def mount(paths, mkpath: true, abort_on_error: true, sort: true)
 			paths=paths.values if paths.is_a?(Hash)
+			paths=paths.select {|p| p[:mountpoint]}
+			if sort
+				# sort so that the mounts are in correct order
+				paths.sort! do |p1, p2|
+					return 1 if Pathname.new(p1[:mountpoint]).ascend.include?(Pathname.new(p2[:mountpoint]))
+					return -1 if Pathname.new(p2[:mountpoint]).ascend.include?(Pathname.new(p1[:mountpoint]))
+					0
+				end
+			end
+			return paths
 			paths.each do |path|
 				dev=find_device(path)
 				options=path[:mountoptions]||[]
@@ -136,6 +159,7 @@ module ShellHelpers
 				cmd="sudo mount #{options.empty? ? "" : "-o #{options.join(',').shellescape}"} #{dev.shellescape} #{mntpoint.shellescape}"
 				abort_on_error ? Sh.sh!(cmd) : Sh.sh(cmd)
 			end
+			paths
 		end
 
 		def umount(paths)
@@ -167,13 +191,27 @@ module ShellHelpers
 			end
 		end
 
-		def make_partitions(partitions)
-			opts=[]
+		#options: check => check that no partitions exist first
+		def make_partitions(partitions, check: true, partprobe: true)
 			partitions=partitions.values if partitions.is_a?(Hash)
+			done=[]
 			disk_partitions=partitions.group_by {|p| p[:disk]}
 			disk_partitions.each do |disk, dpartitions|
 				next if disk.nil?
+				if check
+					partinfos=blkid(disk, sudo: true)
+					# gpt partitions: PTUUID="652121ab-7935-403c-8b87-65a149a415ac" PTTYPE="gpt"
+					# dos partitions: PTUUID="17a4a006" PTTYPE="dos"
+					# others: PTTYPE="PMBR"
+					unless partinfos.empty?
+						raise SysError("Disk #{disk} is not empty: #{partinfos}") if check==:raise
+						warn "Disk #{disk} is not empty: #{partinfos}, skipping..."
+						next
+					end
+				end
+				opts=[]
 				dpartitions.each do |partition|
+					next unless %i(partnum partstart partlength partlabel partattributes parttype).any? {|k| partition.key?(k)}
 					num=partition[:partnum]&.to_i || 0
 					start=partition[:partstart] || 0
 					length=partition[:partlength] || 0
@@ -191,26 +229,35 @@ module ShellHelpers
 					opts << "--attributes=#{num}:set:#{attributes}" if attributes
 					opts << ["--set-alignment=#{alignment}"] if alignment
 				end
-				Sh.sh!("sudo sgdisk #{opts.shelljoin} #{disk.shellescape}")
+				Sh.sh!("sgdisk #{opts.shelljoin} #{disk.shellescape}", sudo: true)
+				done << disk
 			end
-			disk_partitions
+			SH.sh("partprobe #{done.shelljoin}", sudo: true) unless disks.empty? or !partprobe
+			done
 		end
 
 		def zap_partitions(disk)
 			# Zap (destroy) the GPT and MBR data  structures  and  then  exit.
-			Sh.sh("sudo sgdisk --zap-all #{disk.shellescape}")
+			Sh.sh("sgdisk --zap-all #{disk.shellescape}", sudo: true)
 		end
 		def wipe(disk)
 			# wipe all signatures
-			Sh.sh("sudo wipefs -a #{disk.shellescape}")
+			Sh.sh("wipefs -a #{disk.shellescape}", sudo: true)
 		end
 
 		def make_fs(fs)
+			fs=fs.values if fs.is_a?(Hash)
 			fs.each do |partfs|
-				dev=SH.find_disk_part(partfs)
+				dev=SH.find_device(partfs)
 				if dev and (fstype=partfs[:fstype])
 					opts=partfs[:fsoptions]||[]
-					SH.sh("echo sudo mkfs.#{fstype.shellescape} #{opts.shelljoin} #{dev.shellescape}")
+					label=partfs[:label]||partfs[:name]
+					if label
+						labelkey="-L"
+						labelkey="-n" if fstype=="vfat"
+						opts+=[labelkey, label]
+					end
+					SH.sh("mkfs.#{fstype.shellescape} #{opts.shelljoin} #{dev.shellescape}", sudo: true)
 				end
 			end
 		end

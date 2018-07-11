@@ -146,6 +146,7 @@ module ShellHelpers
 				#we may have no symbol keywords
 				*args,spawn_opts=*args
 			end
+			sudo=opts.delete(:sudo)
 			spawn_opts.merge!(opts)
 			env={}
 			opts[:env]||={}
@@ -153,6 +154,13 @@ module ShellHelpers
 				env,*args=*args
 			end
 			env.merge!(opts.delete(:env)||{})
+			if sudo
+				if args.length > 1
+					args.unshift(Run.sudo_args(sudo)) 
+				else
+					args="#{Run.sudo_args(sudo)} #{args.first}"
+				end
+			end
 			
 			case mode
 			when :system
@@ -163,7 +171,7 @@ module ShellHelpers
 			when :exec
 				exec(env,*args,spawn_opts)
 			when :capture
-				SH::Run.run_command(env,*args,spawn_opts)
+				Run.run_command(env,*args,spawn_opts)
 			end
 		end
 
