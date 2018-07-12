@@ -81,7 +81,7 @@ module ShellHelpers
 				source,target,fstype,options,label,uuid,partlabel,partuuid,fsroot=l.chomp.split(/ /)
 				next unless source=~%r(^/dev/) #skip non dev mountpoints
 				options=options.split(',')
-				fs[source]={mountpoint: target, devname: source, type: fstype, mountoptions: options, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, fsroot: fsroot}
+				fs[source]={mountpoint: target, devname: source, fstype: fstype, mountoptions: options, label: label, uuid: uuid, partlabel: partlabel, partuuid: partuuid, fsroot: fsroot}
 			end
 			fs
 		end
@@ -89,6 +89,7 @@ module ShellHelpers
 		def fs_infos(mode: :devices)
 			return findmnt if mode == :mount
 			return lsblk.merge(findmnt) if mode == :all
+			# :devname, :devtype, :mountpoint, [:mountoptions], :label, :uuid, :partlabel, :partuuid, :parttype, :fstype, [:fsroot]
 			lsblk
 		end
 
@@ -97,11 +98,17 @@ module ShellHelpers
 		end
 
 		def find_devices(props, method: :all)
+			props=props.clone
 			return [props[:devname]] unless props[:devname].nil?
-			# search from most discriminant to less discriminant
+
 			if method==:blkid
+				if props.key?(:name)
+					props[:label] ||= props[:name]
+					props[:partlabel] ||= props[:name]
+				end
 				# Warning, since 'blkid' can only test one label, we cannot check
 				# that all parameters are valid
+				# search from most discriminant to less discriminant
 				%i(uuid label partuuid partlabel).each do |key|
 					if (label=props[key])
 						return parse_blkid(%x/blkid -o export -t #{key.to_s.upcase}=#{label.shellescape}/).values
@@ -120,11 +127,19 @@ module ShellHelpers
 				return fs.keys.select do |k|
 					fsprops=fs[k]
 					next false if (disk=props[:disk]) && !fsprops[:devname].start_with?(disk)
-					%i(uuid label partuuid partlabel parttype).all? do |key|
+					next false unless %i(uuid label partuuid partlabel parttype).all? do |key|
 						ptype=props[key]
 						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
 						!ptype or ptype==fsprops[key]
 					end
+					if props.key?(:name)
+						#the logic is a bit complicated because :name could be for
+						#:label or :partlabel
+						next false if
+							(!props[:partlabel] && (name=fsprops[:partlabel]) && props[:name]!=name) and
+							(!props[:label] && (name=fsprops[:label]) && props[:name]!=name)
+					end
+					true
 				end.map {|k| fs[k]}
 			end
 			return []
@@ -149,11 +164,13 @@ module ShellHelpers
 			end
 			paths.each do |path|
 				dev=find_device(path)
+				raise SysError.new("Device #{path} not found") unless dev
 				options=path[:mountoptions]||[]
+				options<<"subvol=#{path[:subvol].shellescape}" if path[:subvol]
 				mntpoint=path[:mountpoint]
-				Sh.sh("sudo mkdir -p #{mntpoint.shellescape}") if mkpath
-				cmd="sudo mount #{options.empty? ? "" : "-o #{options.join(',').shellescape}"} #{dev.shellescape} #{mntpoint.shellescape}"
-				abort_on_error ? Sh.sh!(cmd) : Sh.sh(cmd)
+				mntpoint.sudo_mkpath if mkpath
+				cmd="mount #{(fs=path[:fstype]) && "-t #{fs.shellescape}"} #{options.empty? ? "" : "-o #{options.join(',').shellescape}"} #{dev.shellescape} #{mntpoint.shellescape}"
+				abort_on_error ? Sh.sh!(cmd, sudo: true) : Sh.sh(cmd, sudo: true)
 			end
 			if block_given?
 				begin
@@ -237,7 +254,7 @@ module ShellHelpers
 				Sh.sh!("sgdisk #{opts.shelljoin} #{disk.shellescape}", sudo: true)
 				done << disk
 			end
-			SH.sh("partprobe #{done.shelljoin}", sudo: true) unless disks.empty? or !partprobe
+			SH.sh("partprobe #{done.shelljoin}", sudo: true) unless done.empty? or !partprobe
 			done
 		end
 
@@ -250,7 +267,7 @@ module ShellHelpers
 			Sh.sh("wipefs -a #{disk.shellescape}", sudo: true)
 		end
 
-		def make_fs(fs)
+		def make_fs(fs, check: true)
 			fs=fs.values if fs.is_a?(Hash)
 			fs.each do |partfs|
 				dev=SH.find_device(partfs)
@@ -263,6 +280,14 @@ module ShellHelpers
 						labelkey="-L"
 						labelkey="-n" if fstype.to_s=="vfat"
 						opts+=[labelkey, label]
+					end
+					if check
+						diskinfos=blkid(dev, sudo: true)
+						unless diskinfos[dev][:fstype].nil?
+							raise SysError("Device #{dev} already has a filesystem: #{diskinfos}") if check==:raise
+							warn "Device #{dev} already has a filesystem: #{diskinfos}"
+							next
+						end
 					end
 					SH.sh("#{bin} #{opts.shelljoin} #{dev.shellescape}", sudo: true)
 				end

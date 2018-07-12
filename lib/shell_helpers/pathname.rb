@@ -340,6 +340,13 @@ module ShellHelpers
 			def chattr(*args,**opts)
 				call("chattr",*args,**opts)
 			end
+
+			def sudo_mkdir
+				Sh.sh("mkdir -p #{shellescape}", sudo: true)
+			end
+			def sudo_mkpath
+				Sh.sh("mkdir -p #{shellescape}", sudo: true)
+			end
 		end
 
 		module FUClass
