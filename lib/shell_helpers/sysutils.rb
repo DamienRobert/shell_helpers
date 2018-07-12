@@ -143,7 +143,10 @@ module ShellHelpers
 			paths=paths.values if paths.is_a?(Hash)
 			paths=paths.select {|p| p[:mountpoint]}
 			# sort so that the mounts are in correct order
-			paths.sort! { |p1, p2| Pathname.new(p1[:mountpoint]) <=> Pathname.new(p2[:mountpoint]) } if sort
+			paths=paths.sort { |p1, p2| Pathname.new(p1[:mountpoint]) <=> Pathname.new(p2[:mountpoint]) } if sort
+			close=lambda do
+				umount(paths, sort: sort)
+			end
 			paths.each do |path|
 				dev=find_device(path)
 				options=path[:mountoptions]||[]
@@ -152,13 +155,20 @@ module ShellHelpers
 				cmd="sudo mount #{options.empty? ? "" : "-o #{options.join(',').shellescape}"} #{dev.shellescape} #{mntpoint.shellescape}"
 				abort_on_error ? Sh.sh!(cmd) : Sh.sh(cmd)
 			end
-			paths
+			if block_given?
+				begin
+					yield paths
+				ensure
+					close.call
+				end
+			end
+			return paths, close
 		end
 
 		def umount(paths, sort: true)
 			paths=paths.values if paths.is_a?(Hash)
 			paths=paths.select {|p| p[:mountpoint]}
-			paths.sort! { |p1, p2| Pathname.new(p1[:mountpoint]) <=> Pathname.new(p2[:mountpoint]) } if sort
+			paths=paths.sort { |p1, p2| Pathname.new(p1[:mountpoint]) <=> Pathname.new(p2[:mountpoint]) } if sort
 			paths.reverse.each do |path|
 				mntpoint=path[:mountpoint]
 				Sh.sh("sudo umount #{mntpoint.shellescape}")
@@ -246,13 +256,15 @@ module ShellHelpers
 				dev=SH.find_device(partfs)
 				if dev and (fstype=partfs[:fstype])
 					opts=partfs[:fsoptions]||[]
+					bin="mkfs.#{fstype.to_s.shellescape}"
+					bin="mkswap" if fstype.to_s=="swap"
 					label=partfs[:label]||partfs[:name]
 					if label
 						labelkey="-L"
-						labelkey="-n" if fstype=="vfat"
+						labelkey="-n" if fstype.to_s=="vfat"
 						opts+=[labelkey, label]
 					end
-					SH.sh("mkfs.#{fstype.shellescape} #{opts.shelljoin} #{dev.shellescape}", sudo: true)
+					SH.sh("#{bin} #{opts.shelljoin} #{dev.shellescape}", sudo: true)
 				end
 			end
 		end
@@ -262,6 +274,22 @@ module ShellHelpers
 			raw.touch
 			raw.chattr("+C")
 			Sh.sh("fallocate -l #{size} #{raw.shellescape}")
+			raw
+		end
+
+		def losetup(img)
+			disk,_status=SH.run_simple("losetup -f --show #{img.shellescape}", sudo: true, chomp: true)
+			close=lambda do
+				SH.sh("losetup -d #{disk.shellescape}", sudo: true)
+			end
+			if block_given?
+				begin
+					yield disk
+				ensure
+					close.call
+				end
+			end
+			return disk, close
 		end
 	end
 end
