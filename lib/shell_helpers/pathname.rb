@@ -401,7 +401,9 @@ module ShellHelpers
 			#methods
 			[:cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
 				define_method :"on_#{method}" do |*files,**opts,&b|
-					self.class.fu_class.send(method,*files,self,**opts,&b)
+					files.each do |file|
+						self.class.fu_class.send(method,file,self,**opts,&b)
+					end
 				end
 			end
 			alias_method :on_link, :on_ln
@@ -486,7 +488,9 @@ module ShellHelpers
 								path.to_s[-1]=="/" ? path.mkpath : path.dirname.mkpath
 							end
 							fuopts=opts.reject {|k,v| [:recursive].include?(k)}
-							self.class.fu_class.send(method,*files,path,**fuopts,&b)
+							files.each do |file|
+								self.class.fu_class.send(method,file,path,**fuopts,&b)
+							end
 						rescue RemoveError
 							raise unless rescue_error
 						rescue => e

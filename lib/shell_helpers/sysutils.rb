@@ -13,10 +13,57 @@ module ShellHelpers
 		# return a list of things like
 		#  {:devname=>"/dev/sda2",
 		#   :label=>"swap",
-  	#   :uuid=>"82af0d2f-5ef6-418a-8656-bdfe843f19e1",
-  	#   :type=>"swap",
-  	#   :partlabel=>"swap",
-  	#   :partuuid=>"f4eef373-0803-4701-bd47-b968c44065a6"}
+		#   :uuid=>"82af0d2f-5ef6-418a-8656-bdfe843f19e1",
+		#   :type=>"swap",
+		#   :partlabel=>"swap",
+		#   :partuuid=>"f4eef373-0803-4701-bd47-b968c44065a6"}
+
+		def stat_file(file)
+			require 'time'
+			opts=%w(a b B f F g G h i m n N o s u U w x y z)
+			stats,_suc=Run.run_simple("stat --format='#{opts.map{|o| "%#{o}\n"}.join}' #{file.shellescape}")
+			stats=stats.each_line.map {|l| l.chomp}
+			r={}
+			r[:access]=stats[0]
+			r[:blocknumber]=stats[1].to_i
+			r[:blocksize]=stats[2].to_i
+			r[:rawmode]=stats[3]
+			r[:filetype]=stats[4]
+			r[:gid]=stats[5].to_i
+			r[:group]=stats[6]
+			r[:hardlinks]=stats[7].to_i
+			r[:inode]=stats[8].to_i
+			r[:mountpoint]=stats[9]
+			r[:filename]=stats[10]
+			r[:quotedfilename]=stats[11]
+			r[:optimalsize]=stats[12]
+			r[:size]=stats[13].to_i
+			r[:uid]=stats[14].to_i
+			r[:user]=stats[15]
+			r[:birthtime]  = begin Time.parse(stats[16]) rescue nil end
+			r[:accesstime] = begin Time.parse(stats[17]) rescue nil end
+			r[:changedtime]= begin Time.parse(stats[18]) rescue nil end
+			r[:statustime] = begin Time.parse(stats[19]) rescue nil end
+			r
+		end
+		def stat_filesystem(file)
+			opts=%w(a b c d f i l n s S T)
+			stats,_suc=Run.run_simple("stat --file-system --format='#{opts.map{|o| "%#{o}\n"}.join}' #{file.shellescape}")
+			stats=stats.each_line.map {|l| l.chomp}
+			r={}
+			r[:userfreeblocks]=stats[0].to_i
+			r[:totalblocks]=stats[1].to_i
+			r[:totalnodes]=stats[2].to_i
+			r[:freenodes]=stats[3].to_i
+			r[:freeblocks]=stats[4].to_i
+			r[:fsid]=stats[5]
+			r[:maxlength]=stats[6].to_i
+			r[:name]=stats[7]
+			r[:blocksize]=stats[8].to_i
+			r[:innerblocksize]=stats[9].to_i
+			r[:fstype]=stats[10]
+			r
+		end
 
 		def parse_blkid(output)
 			devs={}
@@ -292,9 +339,19 @@ module ShellHelpers
 		def make_raw_image(name, size="1G")
 			raw=Pathname.new(name)
 			raw.touch
-			raw.chattr("+C")
+			rawfs=stat_filesystem(raw)
+			raw.chattr("+C") if rawfs[:fstype]=="btrfs"
 			Sh.sh("fallocate -l #{size} #{raw.shellescape}")
 			raw
+		end
+
+		def make_btrfs_subvolume(dir, check: true)
+			if check and dir.directory?
+				raise SysError("Subvolume already exists at #{dir}") if check==:raise
+				warn "Subvolume already exists at #{dir}, skipping..."
+			else
+				SH.sh("btrfs subvolume create #{dir.shellescape}", sudo: true)
+			end
 		end
 
 		def losetup(img)
