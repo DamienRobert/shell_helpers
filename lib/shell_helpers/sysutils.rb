@@ -100,12 +100,13 @@ module ShellHelpers
 		def find_devices(props, method: :all)
 			props=props.clone
 			return [props[:devname]] unless props[:devname].nil?
+			# name is both for label and partlabel
+			if props.key?(:name)
+				props[:label] = props[:name] unless props.key?(:label)
+				props[:partlabel] = props[:name] unless props.key?(:partlabel)
+			end
 
 			if method==:blkid
-				if props.key?(:name)
-					props[:label] ||= props[:name]
-					props[:partlabel] ||= props[:name]
-				end
 				# Warning, since 'blkid' can only test one label, we cannot check
 				# that all parameters are valid
 				# search from most discriminant to less discriminant
@@ -127,19 +128,13 @@ module ShellHelpers
 				return fs.keys.select do |k|
 					fsprops=fs[k]
 					next false if (disk=props[:disk]) && !fsprops[:devname].start_with?(disk)
-					next false unless %i(uuid label partuuid partlabel parttype).all? do |key|
+					%i(uuid label partuuid partlabel parttype).all? do |key|
 						ptype=props[key]
 						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
-						!ptype or ptype==fsprops[key]
+						# the fsinfos should also have one of this parameter defined
+						next false unless %i(uuid label partuuid partlabel parttype).any? {|k| fsprops[k]}
+						!ptype or !fsprops[key] or ptype==fsprops[key]
 					end
-					if props.key?(:name)
-						#the logic is a bit complicated because :name could be for
-						#:label or :partlabel
-						next false if
-							(!props[:partlabel] && (name=fsprops[:partlabel]) && props[:name]!=name) and
-							(!props[:label] && (name=fsprops[:label]) && props[:name]!=name)
-					end
-					true
 				end.map {|k| fs[k]}
 			end
 			return []
@@ -150,7 +145,7 @@ module ShellHelpers
 			devs=yield(devs) if block_given?
 			devs=[devs].flatten
 			warn "Device #{props} not found" if devs.empty?
-			warn "Several devices #{props} found: #{devs.map {|d| d&.fetch(:devname)}}" if devs.length >1
+			warn "Several devices for #{props} found: #{devs.map {|d| d&.fetch(:devname)}}" if devs.length >1
 			return devs.first&.fetch(:devname)
 		end
 
@@ -167,7 +162,7 @@ module ShellHelpers
 				raise SysError.new("Device #{path} not found") unless dev
 				options=path[:mountoptions]||[]
 				options<<"subvol=#{path[:subvol].shellescape}" if path[:subvol]
-				mntpoint=path[:mountpoint]
+				mntpoint=Pathname.new(path[:mountpoint])
 				mntpoint.sudo_mkpath if mkpath
 				cmd="mount #{(fs=path[:fstype]) && "-t #{fs.shellescape}"} #{options.empty? ? "" : "-o #{options.join(',').shellescape}"} #{dev.shellescape} #{mntpoint.shellescape}"
 				abort_on_error ? Sh.sh!(cmd, sudo: true) : Sh.sh(cmd, sudo: true)
@@ -262,7 +257,7 @@ module ShellHelpers
 			# Zap (destroy) the GPT and MBR data  structures  and  then  exit.
 			Sh.sh("sgdisk --zap-all #{disk.shellescape}", sudo: true)
 		end
-		def wipe(disk)
+		def wipefs(disk)
 			# wipe all signatures
 			Sh.sh("wipefs -a #{disk.shellescape}", sudo: true)
 		end
@@ -283,9 +278,9 @@ module ShellHelpers
 					end
 					if check
 						diskinfos=blkid(dev, sudo: true)
-						unless diskinfos[dev][:fstype].nil?
-							raise SysError("Device #{dev} already has a filesystem: #{diskinfos}") if check==:raise
-							warn "Device #{dev} already has a filesystem: #{diskinfos}"
+						unless diskinfos.dig(dev,:fstype).nil?
+							raise SysError("Device #{dev} already has a filesystem: #{diskinfos[dev]}") if check==:raise
+							warn "Device #{dev} already has a filesystem: #{diskinfos[dev]}"
 							next
 						end
 					end
