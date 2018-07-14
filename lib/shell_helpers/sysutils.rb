@@ -46,7 +46,13 @@ module ShellHelpers
 			r[:statustime] = begin Time.parse(stats[19]) rescue nil end
 			r
 		end
-		def stat_filesystem(file)
+		def stat_filesystem(file, up: true)
+			if up
+				file=Pathname.new(file)
+				file.ascend.each do |f|
+					return stat_filesystem(f, up: false) if f.exist?
+				end
+			end
 			opts=%w(a b c d f i l n s S T)
 			stats,_suc=Run.run_simple("stat --file-system --format='#{opts.map{|o| "%#{o}\n"}.join}' #{file.shellescape}")
 			stats=stats.each_line.map {|l| l.chomp}
@@ -351,6 +357,18 @@ module ShellHelpers
 				warn "Subvolume already exists at #{dir}, skipping..."
 			else
 				SH.sh("btrfs subvolume create #{dir.shellescape}", sudo: true)
+			end
+		end
+		def make_dir_or_subvolume(dir)
+			dir=Pathname.new(dir)
+			return :directory if dir.directory?
+			fstype=stat_fstype(dir, up: true)
+			if fstype[:fstype]=="btrfs"
+				make_btrfs_subvolume(dir)
+				return :subvol
+			else
+				dir.sudo_mkpath
+				return :directory
 			end
 		end
 
