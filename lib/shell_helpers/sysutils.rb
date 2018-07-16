@@ -357,12 +357,13 @@ module ShellHelpers
 				warn "Subvolume already exists at #{dir}, skipping..."
 			else
 				SH.sh("btrfs subvolume create #{dir.shellescape}", sudo: true)
+				dir
 			end
 		end
 		def make_dir_or_subvolume(dir)
 			dir=Pathname.new(dir)
 			return :directory if dir.directory?
-			fstype=stat_fstype(dir, up: true)
+			fstype=stat_filesystem(dir, up: true)
 			if fstype[:fstype]=="btrfs"
 				make_btrfs_subvolume(dir)
 				return :subvol
