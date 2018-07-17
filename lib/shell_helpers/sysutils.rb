@@ -152,7 +152,7 @@ module ShellHelpers
 
 		def find_devices(props, method: :all)
 			props=props.clone
-			return [props[:devname]] unless props[:devname].nil?
+			return [{devname: props[:devname]}] unless props[:devname].nil?
 			# name is both for label and partlabel
 			if props.key?(:name)
 				props[:label] = props[:name] unless props.key?(:label)
