@@ -176,6 +176,8 @@ module ShellHelpers
 			@@logger
 		end
 
+		self.logger.progname||=$0
+
 		# Change the global logger that includers will use.  Useful if you
 		# don't want the default configured logger.  Note that the
 		# +change_logger+ version is preferred because Ruby will often parse

@@ -37,15 +37,15 @@ module ShellHelpers
 		extend self
 	end
 
-	#include LogHelper to set up CLILogging with some convenience facilities
-	module LogHelper
-		include CLILogging
-		CLILogging.logger.progname||=$0
-		# #Activates Sh.sh in klass
-		# def self.included(klass)
-		# 	klass.const_set(:Sh,ShellHelpers::Sh)
-		# end
-	end
+	# #include LogHelper to set up CLILogging with some convenience facilities
+	# module LogHelper
+	# 	include CLILogging
+	# 	CLILogging.logger.progname||=$0
+	# 	# #Activates Sh.sh in klass
+	# 	# def self.included(klass)
+	# 	# 	klass.const_set(:Sh,ShellHelpers::Sh)
+	# 	# end
+	# end
 end
 
 #for the lazy
