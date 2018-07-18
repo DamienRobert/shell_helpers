@@ -97,7 +97,7 @@ module ShellHelpers
 				self.dirname.mkpath if mkpath
 				self.backup if backup and exist?
 				if !exist? && symlink?
-					logger.debug "Removing bad symlink #{self}"
+					logger.debug "Removing bad symlink #{self}" if respond_to?(:logger)
 					self.unlink
 				end
 				self.open(mode: mode) do |fh|

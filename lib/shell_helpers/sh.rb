@@ -112,7 +112,7 @@ module ShellHelpers
 		attr_writer :default_sh_options
 		def default_sh_options
 			@default_sh_options||={log: true, capture: false, on_success: nil, on_failure: nil, expected:0, dryrun: false, escape: false,
-			log_level_execute: :debug, log_level_error: :error,
+			log_level_execute: :info, log_level_error: :error,
 			log_level_stderr: :error, log_level_stdout_success: :info,
 			log_level_stdout_fail: :warn, detach: false}
 		end
@@ -276,8 +276,8 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 
 	end
 
-	#SH::ShLog.sh is like SH::Sh.sh but with login enabled even when
-	#command succeed
+	#SH::ShLog.sh is by default like SH::Sh.sh.
+	# It is easy to change it to be more verbose though
 	module ShLog
 		include Sh
 		extend self
@@ -286,7 +286,17 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 		@default_sh_options[:log_level_execute]=:info
 	end
 
+	# Do not log execution
 	module ShQuiet
+		include Sh
+		extend self
+		@default_sh_options=default_sh_options
+		@default_sh_options[:log]=true
+		@default_sh_options[:log_level_execute]=:debug
+	end
+
+	# Completely silent
+	module ShSilent
 		include Sh
 		extend self
 		@default_sh_options=default_sh_options
