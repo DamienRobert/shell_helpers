@@ -214,7 +214,9 @@ module ShellHelpers
 				dev=find_device(path)
 				raise SysError.new("Device #{path} not found") unless dev
 				options=path[:mountoptions]||[]
+				options=options.split(',') if options.is_a?(String)
 				options<<"subvol=#{path[:subvol].shellescape}" if path[:subvol]
+				#options=options.join(',') if options.is_a?(Array)
 				mntpoint=Pathname.new(path[:mountpoint])
 				mntpoint.sudo_mkpath if mkpath
 				cmd="mount #{(fs=path[:fstype]) && "-t #{fs.shellescape}"} #{options.empty? ? "" : "-o #{options.join(',').shellescape}"} #{dev.shellescape} #{mntpoint.shellescape}"
