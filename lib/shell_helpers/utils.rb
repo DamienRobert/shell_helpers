@@ -6,6 +6,24 @@ module ShellHelpers
 	module Utils
 		extend self
 
+		def eval_shell(r, shell: :puts)
+			return r if r.nil? or r.empty?
+			case (shell||"").to_sym
+			when :puts
+				puts r
+			when :eval
+				r+=";" if r && !r.end_with?(';')
+				print r
+			when :exec
+				require 'shell_helpers/sh'
+				return ShLog.sh(r)
+			when :exec_quiet
+				require 'shell_helpers/sh'
+				return Sh.sh(r)
+			end
+			return r
+		end
+
 		class << self
 			attr_accessor :orig_stdin, :orig_stdout, :orig_stderr
 		end
