@@ -242,6 +242,7 @@ module ShellHelpers
 			#note: there is no real sense to use mode: :rel here, but we don't
 			#prevent it
 			def rel_path_to(target=self.class.pwd, base: self.class.pwd, mode: :rel, clean_mode: :abs_clean, inside: false, **opts)
+				target=self.class.new(target) unless target.is_a?(self.class)
 				sbase=opts[:source_base]||base
 				smode=opts[:source_mode]||clean_mode
 				tbase=opts[:target_base]||base
