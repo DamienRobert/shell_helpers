@@ -180,7 +180,7 @@ module ShellHelpers
 				return [] unless %i(uuid label partuuid partlabel parttype).any? {|k| props[k]}
 				return fs.keys.select do |k|
 					fsprops=fs[k]
-					next false if (disk=props[:disk]) && !fsprops[:devname].start_with?(disk)
+					next false if (disk=props[:disk]) && !fsprops[:devname].start_with?(disk.to_s)
 					%i(uuid label partuuid partlabel parttype).all? do |key|
 						ptype=props[key]
 						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
