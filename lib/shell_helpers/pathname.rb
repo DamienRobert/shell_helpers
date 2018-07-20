@@ -260,8 +260,11 @@ module ShellHelpers
 				Utils.find(self,*args,&b)
 			end
 
-			def glob(pattern)
-				self.cd { return Dir.glob(pattern) }
+			def glob(pattern, expand: false)
+				g=[]
+				self.cd { g=Dir.glob(pattern) }
+				g=g.map {|f| self+f} if expand
+				g
 			end
 
 			#follow a symlink
