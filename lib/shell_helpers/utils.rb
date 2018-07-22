@@ -224,6 +224,29 @@ module ShellHelpers
 			#expected: rsync error code 23 is some files/attrs were not transferred
 		end
 
+		def ssh(host, *commands, mode: :exec, ssh_command: 'ssh',
+			ssh_options: [], ssh_Ooptions: [], 
+			port: nil, forward: nil, x11: nil, **opts)
+			ssh_options += ["-p", port.to_s] if port
+			ssh_options += ["-W", forward] if forward
+			if x11 == :trusted
+				ssh_options << "-Y"
+			elsif x11
+				ssh_options << "-X"
+			end
+			ssh_options += ssh_Ooptions.map {|o| ["-o", o]}.flatten
+			case mode
+			when :exec
+				Sh.sh([ssh_command]+ssh_options+[host]+commands, **opts)
+			else
+				# return options
+				{ ssh_command: ssh_command,
+				  ssh_options: ssh_options,
+				  host: host,
+				  command: commands }
+			end
+		end
+
 		def capture_stdout
 			old_stdout = $stdout
 			$stdout = StringIO.new('','w')
