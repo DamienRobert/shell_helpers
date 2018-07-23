@@ -226,7 +226,8 @@ module ShellHelpers
 
 		def ssh(host, *commands, mode: :exec, ssh_command: 'ssh',
 			ssh_options: [], ssh_Ooptions: [], 
-			port: nil, forward: nil, x11: nil, **opts)
+			port: nil, forward: nil, x11: nil, user: nil, **opts)
+			host="#{user}@#{host}" if user
 			ssh_options += ["-p", port.to_s] if port
 			ssh_options += ["-W", forward] if forward
 			if x11 == :trusted
