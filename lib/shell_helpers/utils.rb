@@ -226,8 +226,10 @@ module ShellHelpers
 
 		def ssh(host, *commands, mode: :exec, ssh_command: 'ssh',
 			ssh_options: [], ssh_Ooptions: [], 
-			port: nil, forward: nil, x11: nil, user: nil, **opts)
+			port: nil, forward: nil, x11: nil, user: nil, path: nil, **opts)
 			host="#{user}@#{host}" if user
+			ssh_command, *command_options= ssh_command.shellsplit
+			ssh_options=command_options+ssh_options
 			ssh_options += ["-p", port.to_s] if port
 			ssh_options += ["-W", forward] if forward
 			if x11 == :trusted
@@ -239,6 +241,8 @@ module ShellHelpers
 			case mode
 			when :exec
 				Sh.sh([ssh_command]+ssh_options+[host]+commands, **opts)
+			when :uri
+				URI::Generic.build(scheme: 'ssh', userinfo: user, host: host, path: path, port: port) #, query: ssh_options.join('&'))
 			else
 				# return options
 				{ ssh_command: ssh_command,
