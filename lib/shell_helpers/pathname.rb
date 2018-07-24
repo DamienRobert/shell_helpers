@@ -36,6 +36,11 @@ module ShellHelpers
 				to_s.shellescape
 			end
 
+			def to_relative
+				return self if relative?
+				relative_path_from(Pathname.slash)
+			end
+
 			#use the low level FileUtils feature to copy the metadata
 			#if passed a dir just copy the dir metadata, not the directory recursively
 			#Note this differs from FileUtils.copy_entry who copy directories recursively

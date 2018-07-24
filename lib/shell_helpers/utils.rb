@@ -239,8 +239,8 @@ module ShellHelpers
 			end
 			ssh_options += ssh_Ooptions.map {|o| ["-o", o]}.flatten
 			case mode
-			when :exec
-				Sh.sh([ssh_command]+ssh_options+[host]+commands, **opts)
+			when :system,:spawn,:capture,:exec
+				Sh.sh([ssh_command]+ssh_options+[host]+commands, mode: mode, **opts)
 			when :uri
 				URI::Generic.build(scheme: 'ssh', userinfo: user, host: host, path: path, port: port) #, query: ssh_options.join('&'))
 			else

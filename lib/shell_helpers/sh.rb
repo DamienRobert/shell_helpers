@@ -117,29 +117,10 @@ module ShellHelpers
 			log_level_stdout_fail: :warn, detach: false}
 		end
 
-		# Run a shell command, capturing and logging its output.
-		# keywords:: log+capture
-		# If the command completed successfully, it's output is logged at DEBUG.
-		# If not, its output is logged at INFO.  In either case, its
-		# error output is logged at WARN.
-		#						+:expected+:: an Int or Array of Int representing error codes, <b>in addition to 0</b>, that are expected and therefore constitute success.  Useful for commands that don't use exit codes the way you'd like
-		#			name: pretty name of command
-		#			on_success,on_failure: blocks to call on success/failure
-		# block:: if provided, will be called if the command exited nonzero.	The block may take 0, 1, 2, or 3 arguments.
-		#					The arguments provided are the standard output as a string, standard error as a string, and the processstatus as SH::ProcessStatus
-		#					You should be safe to pass in a lambda instead of a block, as long as your lambda doesn't take more than three arguments
-		#
-		# Example
-		#			sh "cp foo /tmp"
-		#			sh "ls /tmp" do |stdout|
-		#				# stdout contains the output of ls /tmp
-		#			end
-		#			sh "ls -l /tmp foobar" do |stdout,stderr|
-		#				# ...
-		#			end
-		#
-		# Returns the exit status of the command.  Note that if the command doesn't exist, this returns 127.
 
+		# callback called by sh to select the exec mode
+		# mode: :system,:spawn,:exec,:capture
+		# opts: sudo, env
 		def shrun(*args,mode: :system, **opts)
 			spawn_opts={}
 			if args.last.kind_of?(Hash)
@@ -175,6 +156,29 @@ module ShellHelpers
 			end
 		end
 
+		# Run a shell command, capturing and logging its output.
+		# keywords:: log+capture
+		# If the command completed successfully, it's output is logged at DEBUG.
+		# If not, its output is logged at INFO.  In either case, its
+		# error output is logged at WARN.
+		#						+:expected+:: an Int or Array of Int representing error codes, <b>in addition to 0</b>, that are expected and therefore constitute success.  Useful for commands that don't use exit codes the way you'd like
+		#			name: pretty name of command
+		#			on_success,on_failure: blocks to call on success/failure
+		# block:: if provided, will be called if the command exited nonzero.	The block may take 0, 1, 2, or 3 arguments.
+		#					The arguments provided are the standard output as a string, standard error as a string, and the processstatus as SH::ProcessStatus
+		#					You should be safe to pass in a lambda instead of a block, as long as your lambda doesn't take more than three arguments
+		#
+		# Example
+		#			sh "cp foo /tmp"
+		#			sh "ls /tmp" do |stdout|
+		#				# stdout contains the output of ls /tmp
+		#			end
+		#			sh "ls -l /tmp foobar" do |stdout,stderr|
+		#				# ...
+		#			end
+		#
+		# Returns the exit status of the command.  Note that if the command doesn't exist, this returns 127.
+
 		def sh(*command, **opts, &block)
 			defaults=default_sh_options
 			curopts=defaults.dup
@@ -190,14 +194,15 @@ module ShellHelpers
 			sh_logger.send(curopts[:log_level_execute], SimpleColor.color("Executing '#{command_name}'",:bold)) if log
 
 			if !curopts[:dryrun]
-				if curopts[:capture]
+				if curopts[:capture] || curopts[:mode]==:capture
 					stdout,stderr,status = shrun(*command,**opts,mode: :capture)
-				elsif curopts[:detach]
+				elsif curopts[:detach] || curopts[:mode]==:spawn
 					pid = shrun(*command,**opts,mode: :spawn)
 					Process.detach(pid)
 					status=0; stdout=nil; stderr=nil
 				else
-					shrun(*command,**opts,mode: :system)
+					mode=curopts[:mode]||:system
+					shrun(*command,mode: mode, **opts)
 					status=$?; stdout=nil; stderr=nil
 				end
 			else
