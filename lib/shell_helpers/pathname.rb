@@ -460,8 +460,10 @@ module ShellHelpers
 					fuopts=others.select {|k,v| [:verbose,:noop,:force].include?(k)}
 					if recursive
 						#this is only called if both recursive=true and mode=:all or :dir
+						logger.debug("rm_r #{self} (#{path}) #{fuopts}") if respond_to?(:logger)
 						self.class.fu_class.rm_r(path, **fuopts)
 					else
+						logger.debug("rm #{self} (#{path}) #{fuopts}") if respond_to?(:logger)
 						self.class.fu_class.rm(path, **fuopts)
 					end
 				else
@@ -497,6 +499,7 @@ module ShellHelpers
 								path.to_s[-1]=="/" ? path.mkpath : path.dirname.mkpath
 							end
 							fuopts=opts.reject {|k,v| [:recursive].include?(k)}
+							logger.debug("#{method} #{self} -> #{files.join(' ')} #{fuopts}") if respond_to?(:logger)
 							files.each do |file|
 								self.class.fu_class.send(method,file,path,**fuopts,&b)
 							end
