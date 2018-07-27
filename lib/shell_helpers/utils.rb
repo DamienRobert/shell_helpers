@@ -224,30 +224,67 @@ module ShellHelpers
 			#expected: rsync error code 23 is some files/attrs were not transferred
 		end
 
+		# host can be of the form user@host:port
+		# warning this is different from standard ssh syntax of user@host:path
 		def ssh(host, *commands, mode: :exec, ssh_command: 'ssh',
-			ssh_options: [], ssh_Ooptions: [], 
+			ssh_options: [], ssh_Ooptions: [],
 			port: nil, forward: nil, x11: nil, user: nil, path: nil, **opts)
-			host="#{user}@#{host}" if user
-			ssh_command, *command_options= ssh_command.shellsplit
-			ssh_options=command_options+ssh_options
-			ssh_options += ["-p", port.to_s] if port
-			ssh_options += ["-W", forward] if forward
-			if x11 == :trusted
-				ssh_options << "-Y"
-			elsif x11
-				ssh_options << "-X"
+
+			#sshkit has a special setting for :local
+			host=host.to_s unless mode==:sshkit and host.is_a?(Symbol)
+			host.is_a?(String) and host.match(/^(?:(.*)@)?(.*?)(?::(\d*))?$/) do |m|
+				user||=m[1]
+				host=m[2]
+				port||=m[3]
 			end
-			ssh_options += ssh_Ooptions.map {|o| ["-o", o]}.flatten
+			unless mode==:net_ssh or mode==:sshkit
+				ssh_command, *command_options= ssh_command.shellsplit
+				ssh_options=command_options+ssh_options
+				ssh_options += ["-p", port.to_s] if port
+				ssh_options += ["-W", forward] if forward
+				if x11 == :trusted
+					ssh_options << "-Y"
+				elsif x11
+					ssh_options << "-X"
+				end
+				ssh_options += ssh_Ooptions.map {|o| ["-o", o]}.flatten
+			else #net_ssh options needs to be a hash
+				ssh_options={} if ssh_options.is_a?(Array)
+				ssh_options[:port]=port if port
+			end
 			case mode
 			when :system,:spawn,:capture,:exec
+				host="#{user}@#{host}" if user
 				Sh.sh([ssh_command]+ssh_options+[host]+commands, mode: mode, **opts)
+			when :net_ssh
+				require 'net/ssh'
+				user=nil;
+				Net::SSH.start(host, user, ssh_options)
+			when :sshkit
+				require 'sshkit'
+				host=SSHKit::Host.new(host)
+				host.port=port if port
+				host.user=user if user
+				host.ssh_options=ssh_options
+				host.define_singleton_method :connect do |run: true, &b|
+					backend = host.local? ? SSHKit::Backend::Local.new(&b) : SSHKit.config.backend.new(host, &b)
+					if run
+						backend.run 
+					else
+						backend
+					end
+				end
+				host
 			when :uri
 				URI::Generic.build(scheme: 'ssh', userinfo: user, host: host, path: path, port: port) #, query: ssh_options.join('&'))
 			else
 				# return options
 				{ ssh_command: ssh_command,
 				  ssh_options: ssh_options,
+				  ssh_command_options: ([ssh_command]+ssh_options).shelljoin,
+				  user: user,
 				  host: host,
+				  hostssh: user ? "#{user}@#{host}" : host,
 				  command: commands }
 			end
 		end
