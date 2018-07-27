@@ -3,6 +3,15 @@ require 'shell_helpers/pathname'
 
 module ShellHelpers
 
+	module ExtendSSHKit
+		def backend(&b)
+			backend = local? ? SSHKit::Backend::Local.new(&b) : SSHKit.config.backend.new(self, &b)
+		end
+		def connect(&b)
+			backend(&b).run
+		end
+	end
+
 	module Utils
 		extend self
 
@@ -232,11 +241,12 @@ module ShellHelpers
 		# warning this is different from standard ssh syntax of user@host:path
 		def ssh(host, *commands, mode: :exec, ssh_command: 'ssh',
 			ssh_options: [], ssh_Ooptions: [],
-			port: nil, forward: nil, x11: nil, user: nil, path: nil, **opts)
+			port: nil, forward: nil, x11: nil, user: nil, path: nil, parse: true,
+			**opts)
 
 			#sshkit has a special setting for :local
 			host=host.to_s unless mode==:sshkit and host.is_a?(Symbol)
-			host.is_a?(String) and host.match(/^(?:(.*)@)?(.*?)(?::(\d*))?$/) do |m|
+			parse and host.is_a?(String) and host.match(/^(?:(.*)@)?(.*?)(?::(\d*))?$/) do |m|
 				user||=m[1]
 				host=m[2]
 				port||=m[3]
@@ -267,17 +277,10 @@ module ShellHelpers
 			when :sshkit
 				require 'sshkit'
 				host=SSHKit::Host.new(host)
+				host.extend(ExtendSSHKit)
 				host.port=port if port
 				host.user=user if user
 				host.ssh_options=ssh_options
-				host.define_singleton_method :connect do |run: true, &b|
-					backend = host.local? ? SSHKit::Backend::Local.new(&b) : SSHKit.config.backend.new(host, &b)
-					if run
-						backend.run 
-					else
-						backend
-					end
-				end
 				host
 			when :uri
 				URI::Generic.build(scheme: 'ssh', userinfo: user, host: host, path: path, port: port) #, query: ssh_options.join('&'))
