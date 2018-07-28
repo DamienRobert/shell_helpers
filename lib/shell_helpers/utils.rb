@@ -213,7 +213,7 @@ module ShellHelpers
 			#use --copy-dirlinks for the same usage on source
 			rsync_opts << "--keep-dirlinks" if keep_dirlinks
 			exclude.each do |ex|
-				rsync_opts += ["--exclude", ex]
+				rsync_opts += ["--exclude", ex.shellescape]
 			end
 			if relative
 				rsync_opts << "--relative"
