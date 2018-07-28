@@ -201,7 +201,7 @@ module ShellHelpers
 			path.map { |dir| Pathname.glob(dir+pattern) }.flatten
 		end
 
-		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, sshcommand: nil, **opts)
+		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, sshcommand: nil, exclude: [], **opts)
 			require 'shell_helpers/sh'
 			rsync_opts=[*opts.delete(:rsync_opts)] || []
 			rsync_opts << default_opts
@@ -212,6 +212,9 @@ module ShellHelpers
 			#on dest: do not replace a symlink to a directory with the real directory
 			#use --copy-dirlinks for the same usage on source
 			rsync_opts << "--keep-dirlinks" if keep_dirlinks
+			exclude.each do |ex|
+				rsync_opts += ["--exclude", ex]
+			end
 			if relative
 				rsync_opts << "--relative"
 				rsync_opts << "--no-implied-dirs"
