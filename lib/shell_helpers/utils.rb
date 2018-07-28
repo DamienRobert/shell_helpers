@@ -5,7 +5,7 @@ module ShellHelpers
 
 	module ExtendSSHKit
 		def backend(&b)
-			backend = local? ? SSHKit::Backend::Local.new(&b) : SSHKit.config.backend.new(self, &b)
+			local? ? SSHKit::Backend::Local.new(&b) : SSHKit.config.backend.new(self, &b)
 		end
 		def connect(&b)
 			backend(&b).run
