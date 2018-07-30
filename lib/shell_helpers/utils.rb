@@ -1,5 +1,6 @@
 require 'shellwords'
 require 'shell_helpers/pathname'
+require 'dr/base/uri'
 
 module ShellHelpers
 
@@ -245,6 +246,7 @@ module ShellHelpers
 		def ssh(host, *commands, mode: :exec, ssh_command: 'ssh',
 			ssh_options: [], ssh_Ooptions: [],
 			port: nil, forward: nil, x11: nil, user: nil, path: nil, parse: true,
+			pty: nil,
 			**opts)
 
 			#sshkit has a special setting for :local
@@ -264,6 +266,8 @@ module ShellHelpers
 				elsif x11
 					ssh_options << "-X"
 				end
+				ssh_options << "-T" if pty==false
+				ssh_options << "-t" if pty==true
 				ssh_options += ssh_Ooptions.map {|o| ["-o", o]}.flatten
 			else #net_ssh options needs to be a hash
 				ssh_options={} if ssh_options.is_a?(Array)
@@ -286,7 +290,7 @@ module ShellHelpers
 				host.ssh_options=ssh_options
 				host
 			when :uri
-				URI::Generic.build(scheme: 'ssh', userinfo: user, host: host, path: path, port: port) #, query: ssh_options.join('&'))
+				URI::Ssh::Generic.build(scheme: 'ssh', userinfo: user, host: host, path: path, port: port) #, query: ssh_options.join('&'))
 			else
 				# return options
 				{ ssh_command: ssh_command,
