@@ -117,6 +117,13 @@ module ShellHelpers
 			log_level_stdout_fail: :warn, detach: false}
 		end
 
+		attr_writer :spawned
+		def spawned
+			@spawned||=[]
+		end
+		def wait_spawned
+			spawned.each {|c| Process.waitpid(c)}
+		end
 
 		# callback called by sh to select the exec mode
 		# mode: :system,:spawn,:exec,:capture
@@ -147,8 +154,19 @@ module ShellHelpers
 			when :system
 				#p "system(#{env},#{args},#{spawn_opts})"
 				system(env,*args,spawn_opts)
-			when :spawn
-				spawn(env,*args,spawn_opts)
+			when :spawn, :detach
+				pid=spawn(env,*args,spawn_opts)
+				if mode==:detach
+					Process.detach(pid) 
+				else
+					spawned << pid
+					if block_given?
+						yield pid
+						Process.wait(pid)
+					else
+						pid
+					end
+				end
 			when :exec
 				exec(env,*args,spawn_opts)
 			when :capture
@@ -196,9 +214,9 @@ module ShellHelpers
 			if !curopts[:dryrun]
 				if curopts[:capture] || curopts[:mode]==:capture
 					stdout,stderr,status = shrun(*command,**opts,mode: :capture)
-				elsif curopts[:detach] || curopts[:mode]==:spawn
-					pid = shrun(*command,**opts,mode: :spawn)
-					Process.detach(pid)
+				elsif curopts[:detach] || curopts[:mode]==:spawn || curopts[:mode]==:detach
+					mode = curopts[:detach] ? :detach : curops[:mode]
+					_pid = shrun(*command,**opts, mode: mode)
 					status=0; stdout=nil; stderr=nil
 				else
 					mode=curopts[:mode]||:system
