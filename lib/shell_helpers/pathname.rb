@@ -172,6 +172,10 @@ module ShellHelpers
 				!binary?
 			end
 
+			def readbin(*args)
+				open("rb").read(*args)
+			end
+
 			#taken from facets/split_all
 			def split_all
 				head, tail = split
