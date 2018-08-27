@@ -9,15 +9,7 @@ module ShellHelpers
 		extend self
 		SysError=Class.new(StandardError)
 
-		# output should be the result of `blkid -o export ...`
-		# return a list of things like
-		#  {:devname=>"/dev/sda2",
-		#   :label=>"swap",
-		#   :uuid=>"82af0d2f-5ef6-418a-8656-bdfe843f19e1",
-		#   :type=>"swap",
-		#   :partlabel=>"swap",
-		#   :partuuid=>"f4eef373-0803-4701-bd47-b968c44065a6"}
-
+		# wrap 'stat'
 		def stat_file(file)
 			require 'time'
 			opts=%w(a b B f F g G h i m n N o s u U w x y z)
@@ -46,6 +38,7 @@ module ShellHelpers
 			r[:statustime] = begin Time.parse(stats[19]) rescue nil end
 			r
 		end
+		# wrap stat --file-system
 		def stat_filesystem(file, up: true)
 			if up
 				file=Pathname.new(file)
@@ -93,6 +86,14 @@ module ShellHelpers
 			devs
 		end
 
+		# output should be the result of `blkid -o export ...`
+		# return a list of things like
+		#  {:devname=>"/dev/sda2",
+		#   :label=>"swap",
+		#   :uuid=>"82af0d2f-5ef6-418a-8656-bdfe843f19e1",
+		#   :type=>"swap",
+		#   :partlabel=>"swap",
+		#   :partuuid=>"f4eef373-0803-4701-bd47-b968c44065a6"}
 		def blkid(*args, sudo: false)
 			# get devname, (part)label/uuid, fstype
 			fsoptions,_suc=Run.run_simple("blkid -o export #{args.shelljoin}", fail_mode: :empty, chomp: true, sudo: sudo)
@@ -147,9 +148,10 @@ module ShellHelpers
 		end
 
 		def refresh_blkid_cache
-			Sh.sh("sudo blkid")
+			Sh.sh("blkid", sudo: true)
 		end
 
+		# find devices matching props
 		def find_devices(props, method: :all)
 			props=props.clone
 			return [{devname: props[:devname]}] unless props[:devname].nil?
@@ -193,6 +195,7 @@ module ShellHelpers
 			return []
 		end
 
+		# like find_devices but warn out if the result is of length > 1
 		def find_device(props)
 			devs=find_devices(props)
 			devs=yield(devs) if block_given?
@@ -238,11 +241,18 @@ module ShellHelpers
 			paths=paths.sort { |p1, p2| Pathname.new(p1[:mountpoint]) <=> Pathname.new(p2[:mountpoint]) } if sort
 			paths.reverse.each do |path|
 				mntpoint=path[:mountpoint]
-				Sh.sh("sudo umount #{mntpoint.shellescape}")
+				Sh.sh("umount #{mntpoint.shellescape}", sudo: true)
 			end
 		end
 
 		def partition_type(type, mode: :guid)
+			if mode==:symbol
+				%i(boot swap home x86_root x86-64_root arm64_root arm32_root linux).each do |symb|
+					%i(hexa guid).each do |mode|
+						partition_type(symb, mode: mode) == type and return symb
+					end
+				end
+			end
 			case type
 			when :boot
 				mode == :hexa ? "ef00" : "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
@@ -261,6 +271,30 @@ module ShellHelpers
 			when :linux
 				mode == :hexa ? "8300" : "0fc63daf-8483-4772-8e79-3d69d8477de4"
 			end
+		end
+
+		def partition_infos(device, sudo: false)
+			parts, suc=Run.run_simple("partx -o NR --show #{device.shellescape}", sudo: sudo)
+			return nil unless suc
+			infos=[]
+			nums=parts.each_line.count - 1
+			(1..nums).each do |i|
+				infos[i-1]={}
+				part_options,suc=Run.run_simple("sgdisk -i#{i} #{device.shellescape}", chomp: true, sudo: sudo)
+				part_options.match(/^Partition name: '(.*)'/) do |m|
+					infos[i-1][:partlabel]=m[1]
+				end
+				part_options.match(/^Attribute flags: (.*)/) do |m|
+					infos[i-1][:partattributes]=m[1]
+				end
+				part_options.match(/^Partition unique GUID: (.*)/) do |m|
+					infos[i-1][:partuuid]=m[1].downcase
+				end
+				part_options.match(/^Partition GUID code: (\S*)/) do |m|
+					infos[i-1][:parttype]=m[1].downcase
+				end
+			end
+			infos
 		end
 
 		#options: check => check that no partitions exist first
@@ -301,8 +335,10 @@ module ShellHelpers
 					opts << "--attributes=#{num}:set:#{attributes}" if attributes
 					opts << ["--set-alignment=#{alignment}"] if alignment
 				end
-				Sh.sh!("sgdisk #{opts.shelljoin} #{disk.shellescape}", sudo: true)
-				done << disk
+				unless opts.empty?
+					Sh.sh!("sgdisk #{opts.shelljoin} #{disk.shellescape}", sudo: true)
+					done << disk
+				end
 			end
 			SH.sh("partprobe #{done.shelljoin}", sudo: true) unless done.empty? or !partprobe
 			done
@@ -376,7 +412,8 @@ module ShellHelpers
 		end
 
 		def losetup(img)
-			disk,_status=SH.run_simple("losetup -f --show #{img.shellescape}", sudo: true, chomp: true)
+			disk,status=SH.run_simple("losetup -f --show #{img.shellescape}", sudo: true, chomp: true)
+			disk=nil unless status
 			close=lambda do
 				SH.sh("losetup -d #{disk.shellescape}", sudo: true)
 			end
