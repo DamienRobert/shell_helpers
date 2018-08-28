@@ -182,12 +182,12 @@ module ShellHelpers
 				return [] unless %i(uuid label partuuid partlabel parttype).any? {|k| props[k]}
 				return fs.keys.select do |k|
 					fsprops=fs[k]
+					# the fsinfos should have one of this parameters defined
+					next false unless %i(uuid label partuuid partlabel parttype).any? {|k| fsprops[k]}
 					next false if (disk=props[:disk]) && !fsprops[:devname].start_with?(disk.to_s)
 					%i(uuid label partuuid partlabel parttype).all? do |key|
 						ptype=props[key]
 						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
-						# the fsinfos should also have one of this parameter defined
-						next false unless %i(uuid label partuuid partlabel parttype).any? {|k| fsprops[k]}
 						!ptype or !fsprops[key] or ptype==fsprops[key]
 					end
 				end.map {|k| fs[k]}
@@ -249,7 +249,7 @@ module ShellHelpers
 			if mode==:symbol
 				%i(boot swap home x86_root x86-64_root arm64_root arm32_root linux).each do |symb|
 					%i(hexa guid).each do |mode|
-						partition_type(symb, mode: mode) == type and return symb
+						partition_type(symb, mode: mode) == type.downcase and return symb
 					end
 				end
 			end
