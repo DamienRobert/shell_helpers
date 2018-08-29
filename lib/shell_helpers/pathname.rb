@@ -426,7 +426,7 @@ module ShellHelpers
 
 		module ActionHandler
 			extend FUClass
-			class PathnameError < Exception
+			class PathnameError < StandardError
 				#encapsulate another exception
 				attr_accessor :ex
 				def initialize(ex=nil)

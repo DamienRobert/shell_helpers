@@ -5,6 +5,7 @@ require 'shellwords'
 module ShellHelpers
 	module Run #{{{
 		extend(self)
+		RunError=Class.new(StandardError)
 
 		def sudo_args(sudoarg)
 			return "" unless sudoarg
@@ -108,7 +109,7 @@ module ShellHelpers
 				when :empty
 					out=""
 				when :error
-					raise "error"
+					raise RunError.new("Error running command '#{launch}': #{status}")
 				when Proc
 					error_mode.call(status, out, error)
 				end
