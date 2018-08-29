@@ -20,15 +20,15 @@ module ShellHelpers
 
 		#Only capture output
 		def output_of(*command)
-			stdout,_status = Open3.capture2(*command)
-			yield stdout, _status if block_given?
+			stdout,status = Open3.capture2(*command)
+			yield stdout, status if block_given?
 			return stdout
 		end
 
 		def status_of(*command)
-			_stdout,_stderr,status = run_command(*command)
+			stdout,stderr,status = run_command(*command)
+			yield stdout, stderr, status if block_given?
 			return status.success?
-			yield _stdout, _stderr, status if block_given?
 			#system(*command)
 			#return $?.dup
 		end
@@ -43,54 +43,25 @@ module ShellHelpers
 			r
 		end
 
-		#a simple wrapper for %x//
-		def run_simple(*command, quiet: false, fail_mode: :error, chomp: false, sudo: false)
+		#by default capture stdout and status
+		def run(*command, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, status_mode: :nil)
 			if command.length > 1
 				launch=command.shelljoin
 			else
-				launch=command.first
-			end
-			launch+=" 2>/dev/null" if quiet
-			launch="#{sudo_args(sudo)} #{launch}"
-			begin
-				out = %x/#{launch}/
-				status=$?.success?
-			rescue => e
-				status=false
-				case fail_mode
-				when :error
-					raise e
-				when :empty
-					out=""
-				when :nil
-					out=nil
-				end
-			end
-			out.chomp! if chomp and out
-			return out, status
-		end
-
-		#capture stdout and status, silence stderr
-		def run(*command, output: :capture, error: nil, fail_mode: :error)
-			if command.length > 1
-				launch=command.shelljoin
-			else
-				launch=command.first
+				launch=command.first #assume it has already been escaped
 			end
 			launch+=" 2>/dev/null" if error==:quiet
 			launch+=" >/dev/null" if output==:quiet
+			launch="#{sudo_args(sudo)} #{launch}" if sudo
 
 			begin
 				if error==:capture
 					out, error, status=Open3.capture3(launch)
-					return out, error, status
 				elsif output==:capture
 					out, status=Open3.capture2(launch)
-					return out, status
 				else
 					system(launch)
 					status=$?
-					return status
 				end
 			rescue => e
 				status=false
@@ -101,9 +72,33 @@ module ShellHelpers
 					out=""
 				when :nil
 					out=nil
+				when Proc
+					fail_mode.call(e)
 				end
-				return out, status
 			end
+			if status
+				yield out, err, status if block_given?
+			else # the command failed
+				case status_mode
+				when :nil
+					out=nil
+				when :empty
+					out=""
+				when :error
+					raise "error"
+				when Proc
+					status_mode.call(out, err, status)
+				end
+			end
+			out.chomp! if chomp and out
+			return out, error, status if error
+			return out, status
+		end
+
+		#a simple wrapper for %x//
+		def run_simple(*command, **opts, &b)
+			out, *_rest = run(*command, **opts, &b)
+			return out
 		end
 
 		#same as Run, but if we get interrupted once, we don't want to launch any more commands

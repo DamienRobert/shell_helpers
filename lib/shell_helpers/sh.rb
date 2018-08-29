@@ -137,7 +137,6 @@ module ShellHelpers
 			sudo=opts.delete(:sudo)
 			spawn_opts.merge!(opts)
 			env={}
-			opts[:env]||={}
 			if args.first.kind_of?(Hash)
 				env,*args=*args
 			end
