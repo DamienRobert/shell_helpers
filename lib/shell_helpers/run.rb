@@ -44,23 +44,42 @@ module ShellHelpers
 		end
 
 		#by default capture stdout and status
-		def run(*command, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, status_mode: :nil)
-			if command.length > 1
-				launch=command.shelljoin
+		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, status_mode: :nil, expected: nil, **opts)
+
+			spawn_opts={}
+			if args.last.kind_of?(Hash)
+				#we may have no symbol keywords
+				*args,spawn_opts=*args
+			end
+			spawn_opts.merge!(opts)
+			env={}
+			if args.first.kind_of?(Hash)
+				env,*args=*args
+			end
+			env.merge!(opts.delete(:env)||{})
+			if sudo
+				if args.length > 1
+					args.unshift(Run.sudo_args(sudo)) 
+				else
+					args="#{Run.sudo_args(sudo)} #{args.first}"
+				end
+			end
+
+			if args.length > 1
+				launch=args.shelljoin
 			else
-				launch=command.first #assume it has already been escaped
+				launch=args.first #assume it has already been escaped
 			end
 			launch+=" 2>/dev/null" if error==:quiet
 			launch+=" >/dev/null" if output==:quiet
-			launch="#{sudo_args(sudo)} #{launch}" if sudo
 
 			begin
 				if error==:capture
-					out, error, status=Open3.capture3(launch)
+					out, error, status=Open3.capture3(env, launch, spawn_opts)
 				elsif output==:capture
-					out, status=Open3.capture2(launch)
+					out, status=Open3.capture2(env, launch, spawn_opts)
 				else
-					system(launch)
+					system(env, launch, spawn_opts)
 					status=$?
 				end
 			rescue => e
@@ -76,7 +95,8 @@ module ShellHelpers
 					fail_mode.call(e)
 				end
 			end
-			if status
+			status=ProcessStatus.new(status, expected) if expected
+			if status.success?
 				yield out, err, status if block_given?
 			else # the command failed
 				case status_mode

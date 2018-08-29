@@ -170,6 +170,8 @@ module ShellHelpers
 				exec(env,*args,spawn_opts)
 			when :capture
 				Run.run_command(env,*args,spawn_opts)
+			when :run
+				Run.run(env,*args,spawn_opts)
 			end
 		end
 
@@ -206,7 +208,7 @@ module ShellHelpers
 
 			log=curopts[:log]
 			command=command.first if command.length==1 and command.first.kind_of?(Array) #so that sh(["ls", "-a"]) works
-			command_name = curopts[:name] || command_name(command)
+			command_name = curopts[:name] || command_name(command) #this keep the options
 			command=command.shelljoin if curopts[:escape]
 			sh_logger.send(curopts[:log_level_execute], SimpleColor.color("Executing '#{command_name}'",:bold)) if log
 
@@ -217,6 +219,14 @@ module ShellHelpers
 					mode = curopts[:detach] ? :detach : curops[:mode]
 					_pid = shrun(*command,**opts, mode: mode)
 					status=0; stdout=nil; stderr=nil
+				elsif curopts[:mode]==:run
+					*res=shrun(*command,**opts,mode: :capture)
+					case res.length
+					when 2
+						stdout, status=res; stderr=nil
+					when 3
+						stdout, stderr, status=res
+					end
 				else
 					mode=curopts[:mode]||:system
 					shrun(*command,mode: mode, **opts)
