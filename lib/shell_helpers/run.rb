@@ -72,6 +72,7 @@ module ShellHelpers
 			end
 			launch+=" 2>/dev/null" if error==:quiet or quiet
 			launch+=" >/dev/null" if output==:quiet
+			out=error=nil
 
 			begin
 				if error==:capture
@@ -109,7 +110,7 @@ module ShellHelpers
 				when :error
 					raise "error"
 				when Proc
-					status_mode.call(status, out, err)
+					error_mode.call(status, out, error)
 				end
 			end
 			if chomp and out
