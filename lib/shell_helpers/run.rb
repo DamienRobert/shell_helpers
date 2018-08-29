@@ -44,7 +44,7 @@ module ShellHelpers
 		end
 
 		#by default capture stdout and status
-		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, **opts)
+		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, quiet: nil, **opts)
 
 			spawn_opts={}
 			if args.last.kind_of?(Hash)
@@ -70,7 +70,7 @@ module ShellHelpers
 			else
 				launch=args.first #assume it has already been escaped
 			end
-			launch+=" 2>/dev/null" if error==:quiet
+			launch+=" 2>/dev/null" if error==:quiet or quiet
 			launch+=" >/dev/null" if output==:quiet
 
 			begin

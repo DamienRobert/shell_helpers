@@ -410,7 +410,7 @@ module ShellHelpers
 		end
 
 		def losetup(img)
-			disk = SH.run_simple("losetup -f --show #{img.shellescape}", sudo: true, chomp: true, error_mode: :nil)
+			disk = Run.run_simple("losetup -f --show #{img.shellescape}", sudo: true, chomp: true, error_mode: :nil)
 			close=lambda do
 				SH.sh("losetup -d #{disk.shellescape}", sudo: true) if disk
 			end
