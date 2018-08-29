@@ -44,7 +44,7 @@ module ShellHelpers
 		end
 
 		#by default capture stdout and status
-		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, status_mode: :nil, expected: nil, **opts)
+		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, **opts)
 
 			spawn_opts={}
 			if args.last.kind_of?(Hash)
@@ -96,10 +96,12 @@ module ShellHelpers
 				end
 			end
 			status=ProcessStatus.new(status, expected) if expected
+			yield status.success?, out, err, status if block_given?
 			if status.success?
-				yield out, err, status if block_given?
+				# this block is called in case of success
+				on_success.call(status, out, err) if on_success.is_a?(Proc)
 			else # the command failed
-				case status_mode
+				case error_mode
 				when :nil
 					out=nil
 				when :empty
@@ -107,17 +109,28 @@ module ShellHelpers
 				when :error
 					raise "error"
 				when Proc
-					status_mode.call(out, err, status)
+					status_mode.call(status, out, err)
 				end
 			end
-			out.chomp! if chomp and out
+			if chomp and out
+				case chomp
+				when :line, :lines
+					#out is now an array
+					out=out.each_line.map {|l| l.chomp}
+				else
+					out.chomp! 
+				end
+			end
+
 			return out, error, status if error
 			return out, status
 		end
 
 		#a simple wrapper for %x//
 		def run_simple(*command, **opts, &b)
-			out, *_rest = run(*command, **opts, &b)
+			# here the block is called in case of failure
+			opts[:error_mode]=b if b
+			out, *_rest = run(*command, **opts)
 			return out
 		end
 

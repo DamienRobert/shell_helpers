@@ -13,8 +13,7 @@ module ShellHelpers
 		def stat_file(file)
 			require 'time'
 			opts=%w(a b B f F g G h i m n N o s u U w x y z)
-			stats,_suc=Run.run_simple("stat --format='#{opts.map{|o| "%#{o}\n"}.join}' #{file.shellescape}")
-			stats=stats.each_line.map {|l| l.chomp}
+			stats=Run.run_simple("stat --format='#{opts.map{|o| "%#{o}\n"}.join}' #{file.shellescape}", chomp: :lines)
 			r={}
 			r[:access]=stats[0]
 			r[:blocknumber]=stats[1].to_i
@@ -47,7 +46,7 @@ module ShellHelpers
 				end
 			end
 			opts=%w(a b c d f i l n s S T)
-			stats,_suc=Run.run_simple("stat --file-system --format='#{opts.map{|o| "%#{o}\n"}.join}' #{file.shellescape}")
+			stats=Run.run_simple("stat --file-system --format='#{opts.map{|o| "%#{o}\n"}.join}' #{file.shellescape}", chomp: :lines)
 			stats=stats.each_line.map {|l| l.chomp}
 			r={}
 			r[:userfreeblocks]=stats[0].to_i
@@ -96,14 +95,14 @@ module ShellHelpers
 		#   :partuuid=>"f4eef373-0803-4701-bd47-b968c44065a6"}
 		def blkid(*args, sudo: false)
 			# get devname, (part)label/uuid, fstype
-			fsoptions,_suc=Run.run_simple("blkid -o export #{args.shelljoin}", fail_mode: :empty, chomp: true, sudo: sudo)
+			fsoptions=Run.run_simple("blkid -o export #{args.shelljoin}", fail_mode: :empty, chomp: true, sudo: sudo)
 			parse_blkid(fsoptions)
 		end
 
 		# use lsblk to get infos about devices
 		def lsblk(sudo: false)
 			# get devname, mountpoint, (part)label/uuid, (part/dev/fs)type
-			fsoptions,_suc=Run.run_simple("lsblk -l -J -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true, sudo: sudo)
+			fsoptions=Run.run_simple("lsblk -l -J -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true, sudo: sudo)
 			require 'json'
 			json=JSON.parse(fsoptions)
 			fs={}
@@ -128,7 +127,7 @@ module ShellHelpers
 			# get devname, mountpoint, mountoptions, (part)label/uuid, fsroot
 			# only looks at mounted devices (but in comparison to lsblk also show
 			# virtual mounts and bind mounts)
-			fsoptions,_suc=SH::Run.run_simple("findmnt --raw -o SOURCE,TARGET,FSTYPE,OPTIONS,LABEL,UUID,PARTLABEL,PARTUUID,FSROOT", fail_mode: :empty, chomp: true, sudo: sudo)
+			fsoptions=SH::Run.run_simple("findmnt --raw -o SOURCE,TARGET,FSTYPE,OPTIONS,LABEL,UUID,PARTLABEL,PARTUUID,FSROOT", fail_mode: :empty, chomp: true, sudo: sudo)
 			fs={}
 			fsoptions.each_line.to_a[1..-1]&.each do |l|
 				#two '	' means a missing option, so we want to split on / /, not on ' '
@@ -274,13 +273,12 @@ module ShellHelpers
 		end
 
 		def partition_infos(device, sudo: false)
-			parts, suc=Run.run_simple("partx -o NR --show #{device.shellescape}", sudo: sudo)
-			return nil unless suc
+			parts = Run.run_simple("partx -o NR --show #{device.shellescape}", sudo: sudo) { return nil }
 			infos=[]
 			nums=parts.each_line.count - 1
 			(1..nums).each do |i|
 				infos[i-1]={}
-				part_options,suc=Run.run_simple("sgdisk -i#{i} #{device.shellescape}", chomp: true, sudo: sudo)
+				part_options=Run.run_simple("sgdisk -i#{i} #{device.shellescape}", chomp: true, sudo: sudo)
 				part_options.match(/^Partition name: '(.*)'/) do |m|
 					infos[i-1][:partlabel]=m[1]
 				end
@@ -412,10 +410,9 @@ module ShellHelpers
 		end
 
 		def losetup(img)
-			disk,status=SH.run_simple("losetup -f --show #{img.shellescape}", sudo: true, chomp: true)
-			disk=nil unless status
+			disk = SH.run_simple("losetup -f --show #{img.shellescape}", sudo: true, chomp: true, error_mode: :nil)
 			close=lambda do
-				SH.sh("losetup -d #{disk.shellescape}", sudo: true)
+				SH.sh("losetup -d #{disk.shellescape}", sudo: true) if disk
 			end
 			if block_given?
 				begin
