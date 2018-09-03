@@ -350,13 +350,12 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 	# ShConfig.launch(:ls, "/", config: {ls: {default_opts: ["-l"]}})
 	# => ["ls", "-l", "/", {}]
 	# ShConfig.launch(:ls, "/", config: {ls: {default_opts: ["-l"]}}, method: :sh)
-	# ShConfig.launch(:ls, "/", config: {ls: {default_opts: ["-l"]}}) { |*args, context: nil, **kwds| SH.sh(*args, **kwds) }
-	# ShConfig.launch(:ls, "/", config: {ls: {wrap: ->(cmd,*args,context: nil, **kwds, &b) { b.call(cmd, '-l', *args, **kwds) } }}, method: :sh)
-	# ShConfig.launch(:ls, "/", config: {ls: {wrap: ->(cmd,*args,context: nil, **kwds, &b) {b.call(cmd, '-l', *args, **kwds) } }}, method: :sh)
+	# ShConfig.launch(:ls, "/", config: {ls: {default_opts: ["-l"]}}) { |*args| SH.sh(*args) }
+	# ShConfig.launch(:ls, "/", config: {ls: {wrap: ->(cmd,*args, &b) { b.call(cmd, '-l', *args) } }}, method: :sh)
 
 	module ShConfig
 		extend self
-		def launch(*args, opts: [], config: self.sh_config, default_opts: true, method: nil, context: nil, **keywords, &b)
+		def launch(*args, opts: [], config: self.sh_config, default_opts: true, method: nil, **keywords, &b)
 			if args.length == 1
 				arg=args.first
 				args=arg.shellsplit
@@ -374,19 +373,19 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 			cargs=[cmd] + dopts + Array(opts) + args
 			if !b
 				if method
-					b=lambda do |*args, context: nil, **keywords|
-						SH.public_send(method, *args, **keywords)
+					b=lambda do |*args|
+						SH.public_send(method, *args)
 					end
 				else
-					b=lambda do |*args, context: nil, **keywords|
-						return *args, keywords
+					b=lambda do |*args|
+						return *args
 					end
 				end
 			end
 			if wrap
-				wrap.call(*cargs, context: context, **keywords, &b)
+				wrap.call(*cargs, **keywords, &b)
 			else
-				b.call(*cargs, context: context, **keywords)
+				b.call(*cargs, **keywords)
 			end
 		end
 	end
