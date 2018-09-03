@@ -343,5 +343,52 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 		@default_sh_options[:log_level_execute]=:info
 		@default_sh_options[:dryrun]=true
 	end
+
+	# this modules deal with default options, paths and arg handling for
+	# different programs, while letting the user control
+	# Exemple:
+	# config={ls: {default_opts: ["-l"]}}
+	# ShConfig.launch(:ls, "/")
+	module ShConfig
+		extend self
+		def launch(*args, opts: [], config: self.sh_config, default_opts: true, method: nil, context: nil, **keywords, &b)
+			if args.length == 1
+				arg=args.first
+				args=arg.shellsplit
+				args[0]=args[0][1..-1].to_sym if args[0][0]==':'
+			end
+			opts=opts.shellsplit if opts.is_a?(String)
+			cmd=args.first
+			if cmd.is_a?(Symbol) and config.key?(cmd)
+				c=config[cmd]
+				bin=c[:bin] || cmd.to_s
+				dopts = case default_opts
+					when Array; default_opts
+					when true; c[:default_opts]||[]
+					when false; []
+					end
+				args=[bin] + Array(dopts) + Array(opts) + Array(args[1..-1])
+				if c[:wrap]
+					b=lambda do |*args|
+						c[:wrap].call(*args, &b)
+					end
+				end
+			else
+				args=[args[0]]+Array(opts)+Array(args[1..-1])
+			end
+			if !b
+				if method
+					b=lambda do |*args, context: nil, **keywords|
+						SH.public_send(method, *args, **keywords)
+					end
+				else
+					b=lambda do |*args, context: nil, **keywords|
+						return *args, keywords
+					end
+				end
+			end
+			b.call(*args, context: context, **keywords)
+		end
+	end
 	# }}}
 end
