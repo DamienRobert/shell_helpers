@@ -346,9 +346,14 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 
 	# this modules deal with default options, paths and arg handling for
 	# different programs, while letting the user control
-	# Exemple:
-	# config={ls: {default_opts: ["-l"]}}
-	# ShConfig.launch(:ls, "/")
+	# Exemples:
+	# ShConfig.launch(:ls, "/", config: {ls: {default_opts: ["-l"]}})
+	# => ["ls", "-l", "/", {}]
+	# ShConfig.launch(:ls, "/", config: {ls: {default_opts: ["-l"]}}, method: :sh)
+	# ShConfig.launch(:ls, "/", config: {ls: {default_opts: ["-l"]}}) { |*args, context: nil, **kwds| SH.sh(*args, **kwds) }
+	# ShConfig.launch(:ls, "/", config: {ls: {wrap: ->(cmd,*args,context: nil, **kwds, &b) { b.call(cmd, '-l', *args, **kwds) } }}, method: :sh)
+	# ShConfig.launch(:ls, "/", config: {ls: {wrap: ->(cmd,*args,context: nil, **kwds, &b) {b.call(cmd, '-l', *args, **kwds) } }}, method: :sh)
+
 	module ShConfig
 		extend self
 		def launch(*args, opts: [], config: self.sh_config, default_opts: true, method: nil, context: nil, **keywords, &b)
@@ -358,24 +363,15 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 				args[0]=args[0][1..-1].to_sym if args[0][0]==':'
 			end
 			opts=opts.shellsplit if opts.is_a?(String)
-			cmd=args.first
+			dopts = default_opts.is_a?(Array) ? default_opts : []
+			cmd, *args=args
 			if cmd.is_a?(Symbol) and config.key?(cmd)
 				c=config[cmd]
-				bin=c[:bin] || cmd.to_s
-				dopts = case default_opts
-					when Array; default_opts
-					when true; c[:default_opts]||[]
-					when false; []
-					end
-				args=[bin] + Array(dopts) + Array(opts) + Array(args[1..-1])
-				if c[:wrap]
-					b=lambda do |*args|
-						c[:wrap].call(*args, &b)
-					end
-				end
-			else
-				args=[args[0]]+Array(opts)+Array(args[1..-1])
+				cmd=c[:bin] || cmd.to_s
+				dopts += (Array(c[:default_opts])||[]) if default_opts
+				wrap=c[:wrap]
 			end
+			cargs=[cmd] + dopts + Array(opts) + args
 			if !b
 				if method
 					b=lambda do |*args, context: nil, **keywords|
@@ -387,7 +383,11 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 					end
 				end
 			end
-			b.call(*args, context: context, **keywords)
+			if wrap
+				wrap.call(*cargs, context: context, **keywords, &b)
+			else
+				b.call(*cargs, context: context, **keywords)
+			end
 		end
 	end
 	# }}}
