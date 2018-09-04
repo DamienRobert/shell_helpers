@@ -603,17 +603,18 @@ module ShellHelpers
 				@tmpfile.flush
 			end
 			if block_given?
-				yield file
+				yield path
 				@tmpfile.close(unlink)
 			end
-			file
+			path
 		end
 
 		def to_s
-			@tmpfile&.path
+			@tmpfile&.path || "VirtualFile:#{@name}"
 		end
 
 		def shellescape
+			create
 			to_s&.shellescape
 		end
 	end

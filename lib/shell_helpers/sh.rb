@@ -143,6 +143,7 @@ module ShellHelpers
 				env,*args=*args
 			end
 			env.merge!(opts.delete(:env)||{})
+			args=args.map {|arg| arg.to_s} if args.length > 1
 			if sudo
 				if args.length > 1
 					args.unshift(Run.sudo_args(sudo)) 
@@ -235,7 +236,7 @@ module ShellHelpers
 					status=$?; stdout=nil; stderr=nil
 				end
 			else
-				puts command.to_s
+				sh_logger.info command.to_s
 				status=0; stdout=nil; stderr=nil
 			end
 			process_status = ProcessStatus.new(status,curopts[:expected])
@@ -294,9 +295,10 @@ module ShellHelpers
 	private
 		def command_name(command)
 			if command.size == 1
-				return command.first.to_s
+				command.first.to_s
 			else
-				return command.to_s
+				#command.to_s
+				command.map {|i| i.to_s}.to_s
 			end
 		end
 
