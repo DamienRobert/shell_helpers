@@ -3,6 +3,8 @@
 #last import 4626a2bca9b6e54077a06a0f8e11a04fadc6e7ae, 2017-01-19
 require 'shell_helpers/logger'
 require 'shell_helpers/run'
+require 'forwardable'
+
 begin
 	require 'simplecolor'
 rescue LoadError
@@ -356,19 +358,22 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 	module ShConfig
 		extend self
 		def launch(*args, opts: [], config: self.sh_config, default_opts: true, method: nil, **keywords, &b)
-			if args.length == 1
-				arg=args.first
+			if args.length == 1 and (arg=args.first).is_a?(String)
 				args=arg.shellsplit
 				args[0]=args[0][1..-1].to_sym if args[0][0]==':'
 			end
 			opts=opts.shellsplit if opts.is_a?(String)
 			dopts = default_opts.is_a?(Array) ? default_opts : []
 			cmd, *args=args
-			if cmd.is_a?(Symbol) and config.key?(cmd)
-				c=config[cmd]
-				cmd=c[:bin] || cmd.to_s
-				dopts += (Array(c[:default_opts])||[]) if default_opts
-				wrap=c[:wrap]
+			if cmd.is_a?(Symbol)
+				if config.key?(cmd)
+					c=config[cmd]
+					cmd=c[:bin] || cmd.to_s
+					dopts += (Array(c[:default_opts])||[]) if default_opts
+					wrap=c[:wrap]
+				else
+					cmd=cmd.to_s
+				end
 			end
 			cargs=[cmd] + dopts + Array(opts) + args
 			if !b
@@ -387,6 +392,10 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 			else
 				b.call(*cargs, **keywords)
 			end
+		end
+
+		def sh_config
+			{}
 		end
 	end
 	# }}}

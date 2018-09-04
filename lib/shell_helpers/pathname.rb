@@ -574,6 +574,49 @@ module ShellHelpers
 	class Pathname::DryRun < Pathname
 		@fu_class=FileUtils::DryRun
 	end
+
+	class VirtualFile
+		extend Forwardable
+		def_delegators :@tmpfile, :open, :close, :close!, :unlink, :path
+		attr_accessor :content, :name, :tmpfile
+
+		def initialize(name, content)
+			@content=content
+			@tmpfile=nil
+			@name=name
+		end
+
+		def path
+			@tmpfile&.path && Pathname.new(@tmpfile.path)
+		end
+
+		def file
+			create
+			path
+		end
+
+		def create(unlink=false)
+			require 'tempfile'
+			unless @tmpfile&.path
+				@tmpfile = Tempfile.new(@name)
+				@tmpfile.write(@content)
+				@tmpfile.flush
+			end
+			if block_given?
+				yield file
+				@tmpfile.close(unlink)
+			end
+			file
+		end
+
+		def to_s
+			@tmpfile&.path
+		end
+
+		def shellescape
+			to_s&.shellescape
+		end
+	end
 end
 
 =begin
