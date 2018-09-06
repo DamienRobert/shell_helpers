@@ -137,24 +137,24 @@ module ShellHelpers
 				*args,spawn_opts=*args
 			end
 			sudo=opts.delete(:sudo)
-			spawn_opts.merge!(opts)
 			env={}
 			if args.first.kind_of?(Hash)
 				env,*args=*args
 			end
 			env.merge!(opts.delete(:env)||{})
+			spawn_opts.merge!(opts)
 			args=args.map {|arg| arg.to_s} if args.length > 1
 			if sudo
 				if args.length > 1
-					args.unshift(Run.sudo_args(sudo)) 
+					args.unshift(*Run.sudo_args(sudo)) 
 				else
-					args="#{Run.sudo_args(sudo)} #{args.first}"
+					args="#{Run.sudo_args(sudo).shelljoin} #{args.first}"
 				end
 			end
 			
+			# p env, args, spawn_opts
 			case mode
 			when :system
-				#p "system(#{env},#{args},#{spawn_opts})"
 				system(env,*args,spawn_opts)
 			when :spawn, :detach
 				pid=spawn(env,*args,spawn_opts)

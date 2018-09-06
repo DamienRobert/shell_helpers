@@ -9,8 +9,8 @@ module ShellHelpers
 
 		def sudo_args(sudoarg)
 			return "" unless sudoarg
-			return sudoarg if sudoarg.is_a?(String)
-			"sudo"
+			return sudoarg.shellsplit if sudoarg.is_a?(String)
+			["sudo"]
 		end
 
 		#the run_* commands here capture all the output
@@ -60,9 +60,9 @@ module ShellHelpers
 			env.merge!(opts.delete(:env)||{})
 			if sudo
 				if args.length > 1
-					args.unshift(Run.sudo_args(sudo)) 
+					args.unshift(*Run.sudo_args(sudo)) 
 				else
-					args="#{Run.sudo_args(sudo)} #{args.first}"
+					args="#{Run.sudo_args(sudo).shelljoin} #{args.first}"
 				end
 			end
 
