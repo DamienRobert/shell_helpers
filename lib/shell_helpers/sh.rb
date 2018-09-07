@@ -114,6 +114,7 @@ module ShellHelpers
 		attr_writer :default_sh_options
 		def default_sh_options
 			@default_sh_options||={log: true, capture: false, on_success: nil, on_failure: nil, expected:0, dryrun: false, escape: false,
+			log_level_execute_debug: :debug,
 			log_level_execute: :info, log_level_error: :error,
 			log_level_stderr: :error, log_level_stdout_success: :info,
 			log_level_stdout_fail: :warn, detach: false}
@@ -131,27 +132,7 @@ module ShellHelpers
 		# mode: :system,:spawn,:exec,:capture
 		# opts: sudo, env
 		def shrun(*args,mode: :system, **opts)
-			spawn_opts={}
-			if args.last.kind_of?(Hash)
-				#we may have no symbol keywords
-				*args,spawn_opts=*args
-			end
-			sudo=opts.delete(:sudo)
-			env={}
-			if args.first.kind_of?(Hash)
-				env,*args=*args
-			end
-			env.merge!(opts.delete(:env)||{})
-			spawn_opts.merge!(opts)
-			args=args.map {|arg| arg.to_s} if args.length > 1
-			if sudo
-				if args.length > 1
-					args.unshift(*Run.sudo_args(sudo)) 
-				else
-					args="#{Run.sudo_args(sudo).shelljoin} #{args.first}"
-				end
-			end
-			
+			env, args, spawn_opts=Run.process_command(*args, **opts)
 			# p env, args, spawn_opts
 			case mode
 			when :system
@@ -210,10 +191,14 @@ module ShellHelpers
 			end
 
 			log=curopts[:log]
-			command=command.first if command.length==1 and command.first.kind_of?(Array) #so that sh(["ls", "-a"]) works
+			# command=command.first if command.length==1 and command.first.kind_of?(Array) #so that sh(["ls", "-a"]) works
 			command_name = curopts[:name] || command_name(command) #this keep the options
 			command=command.shelljoin if curopts[:escape]
-			sh_logger.send(curopts[:log_level_execute], SimpleColor.color("Executing '#{command_name}'",:bold)) if log
+			if log
+				sh_logger.send(curopts[:log_level_execute], SimpleColor.color("Executing '#{command_name}'",:bold))
+				p_env, p_args, p_opts= Run.process_command(*command, **opts)
+				sh_logger.send(curopts[:log_level_execute_debug], SimpleColor.color("Debug execute: '#{[p_env, *p_args, p_opts]}'", :bold))
+			end
 
 			if !curopts[:dryrun]
 				if curopts[:capture] || curopts[:mode]==:capture
@@ -298,7 +283,8 @@ module ShellHelpers
 				command.first.to_s
 			else
 				#command.to_s
-				command.map {|i| i.to_s}.to_s
+				#command.map {|i| i.to_s}.to_s
+				command.shelljoin
 			end
 		end
 
@@ -359,12 +345,15 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 
 	module ShConfig
 		extend self
-		def launch(*args, opts: [], config: self.sh_config, default_opts: true, method: nil, **keywords, &b)
+		def launch(*args, opts: [], cmd_prepend: [], cmd_postpone: [], config: self.sh_config, default_opts: true, method: nil, **keywords, &b)
 			if args.length == 1 and (arg=args.first).is_a?(String)
 				args=arg.shellsplit
 				args[0]=args[0][1..-1].to_sym if args[0][0]==':'
 			end
 			opts=opts.shellsplit if opts.is_a?(String)
+			default_opts=default_opts.shellsplit if default_opts.is_a?(String)
+			cmd_prepend=cmd_prepend.shellsplit if cmd_prepend.is_a?(String)
+			cmd_postpone=cmd_postpone.shellsplit if cmd_postpone.is_a?(String)
 			dopts = default_opts.is_a?(Array) ? default_opts : []
 			cmd, *args=args
 			if cmd.is_a?(Symbol)
@@ -377,7 +366,7 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 					cmd=cmd.to_s
 				end
 			end
-			cargs=[cmd] + dopts + Array(opts) + args
+			cargs=Array(cmd_prepend) + [cmd] + dopts + Array(opts) + args + Array(cmd_postpone)
 			if !b
 				if method
 					b=lambda do |*args|

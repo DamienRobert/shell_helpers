@@ -44,20 +44,20 @@ module ShellHelpers
 			r
 		end
 
-		#by default capture stdout and status
-		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, quiet: nil, **opts)
-
+		def process_command(*args, **opts)
 			spawn_opts={}
 			if args.last.kind_of?(Hash)
 				#we may have no symbol keywords
 				*args,spawn_opts=*args
 			end
-			spawn_opts.merge!(opts)
+			sudo=opts.delete(:sudo)
 			env={}
 			if args.first.kind_of?(Hash)
 				env,*args=*args
 			end
 			env.merge!(opts.delete(:env)||{})
+			args=args.map {|arg| arg.to_s} if args.length > 1
+			spawn_opts.merge!(opts)
 			if sudo
 				if args.length > 1
 					args.unshift(*Run.sudo_args(sudo)) 
@@ -65,6 +65,12 @@ module ShellHelpers
 					args="#{Run.sudo_args(sudo).shelljoin} #{args.first}"
 				end
 			end
+			return env, args, spawn_opts
+		end
+
+		#by default capture stdout and status
+		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, quiet: nil, **opts)
+			env, args, spawn_opts=Run.process_command(*args, **opts)
 
 			if args.length > 1
 				launch=args.shelljoin
