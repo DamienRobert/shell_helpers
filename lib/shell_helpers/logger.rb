@@ -61,6 +61,7 @@ module ShellHelpers
 		proxy_method :'datetime_format='
 
 		def add(severity, message = nil, progname = nil, &block) #:nodoc:
+			return true if severity == QUIET
 			if @split_logs
 				unless severity >= @stderr_logger.level
 					super(severity,message,progname,&block)
@@ -70,6 +71,11 @@ module ShellHelpers
 			end
 			@stderr_logger.add(severity,message,progname,&block)
 		end
+
+		def quiet(progname = nil, &block)
+			add(QUIET, nil, progname, &block)
+		end
+
 
 		DEFAULT_ERROR_LEVEL = Logger::Severity::WARN
 
@@ -126,11 +132,57 @@ module ShellHelpers
 			@stderr_logger.formatter=formatter
 		end
 
-	private
-
-		def tty?(device_or_string)
+		private def tty?(device_or_string)
 			return device_or_string.tty? if device_or_string.respond_to? :tty?
 			false
+		end
+
+		#log the action and execute it
+		#Severity is Logger:: DEBUG < INFO < WARN < ERROR < FATAL < UNKNOWN
+		def log_and_do(*args, severity: Logger::INFO, definee: self, **opts, &block)
+			msg="log_and_do #{args} on #{self}"
+			msg+=" with options #{opts}" unless opts.empty?
+			msg+=" with block #{block}" if block
+			logger.add(severity,msg)
+			if opts.empty?
+				definee.send(*args, &block)
+			else
+				definee.send(*args, **opts, &block)
+			end
+		end
+
+		QUIET=-1
+
+		def log_levels
+			{
+				'quiet' => QUIET,
+				'debug' => Logger::DEBUG,
+				'info' => Logger::INFO,
+				'warn' => Logger::WARN,
+				'error' => Logger::ERROR,
+				'fatal' => Logger::FATAL,
+			}
+		end
+
+		private def toggle_log_level
+			@log_level_original = self.level unless @log_level_toggled
+			logger.level = if @log_level_toggled
+											 @log_level_original
+										 else
+											 log_levels.fetch('debug')
+										 end
+			@log_level_toggled = !@log_level_toggled
+			@log_level = logger.level
+		end
+
+		#call logger.setup_toggle_trap('USR1') to change the log level to
+		#:debug when USR1 is received
+		def setup_toggle_trap(signal)
+			if signal
+				Signal.trap(signal) do
+					toggle_log_level
+				end
+			end
 		end
 
 	end
@@ -195,47 +247,14 @@ module ShellHelpers
 
 		alias logger= change_logger
 
-		LOG_LEVELS = {
-			'debug' => Logger::DEBUG,
-			'info' => Logger::INFO,
-			'warn' => Logger::WARN,
-			'error' => Logger::ERROR,
-			'fatal' => Logger::FATAL,
-		}
-
-		#log the action and execute it
-		#Severity is Logger:: DEBUG < INFO < WARN < ERROR < FATAL < UNKNOWN
-		def log_and_do(*args, severity: Logger::INFO, definee: self, **opts, &block)
-			msg="log_and_do #{args} on #{self}"
-			msg+=" with options #{opts}" unless opts.empty?
-			msg+=" with block #{block}" if block
-			logger.add(severity,msg)
-			if opts.empty?
-				definee.send(*args, &block)
-			else
-				definee.send(*args, **opts, &block)
-			end
-		end
-
-		private def toggle_log_level
-			@log_level_original = logger.level unless @log_level_toggled
-			logger.level = if @log_level_toggled
-											 @log_level_original
-										 else
-											 LOG_LEVELS['debug']
-										 end
-			@log_level_toggled = !@log_level_toggled
-			@log_level = logger.level
-		end
-
-		#call Logger.setup_toggle_trap('USR1') to change the log level to
+		#call CLILogging.setup_toggle_trap('USR1') to change the log level to
 		#:debug when USR1 is received
 		def self.setup_toggle_trap(signal)
-			if signal
-				Signal.trap(signal) do
-					toggle_log_level
-				end
-			end
+			logger.setup_toggle_trap(signal)
+		end
+
+		def log_and_do(*args)
+			logger.log_and_do(*args)
 		end
 
 		#Include this in place of CLILogging if you prefer to use
