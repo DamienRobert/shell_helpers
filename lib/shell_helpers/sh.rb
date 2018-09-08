@@ -277,6 +277,19 @@ module ShellHelpers
 			end
 		end
 
+		def sh_or_proc(cmd, *args, **opts, &b)
+			case cmd
+			when Proc
+				cmd.call(*args, **opts, &b)
+			when Array
+				suc, _r=SH.sh(*cmd, *args, **opts, &b)
+				suc
+			when String
+				suc, _r=SH.sh(cmd + " #{args.shelljoin}", **opts, &b)
+				suc
+			end
+		end
+
 	private
 		def command_name(command)
 			if command.size == 1
