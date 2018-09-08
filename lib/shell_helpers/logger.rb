@@ -143,7 +143,7 @@ module ShellHelpers
 			msg="log_and_do #{args} on #{self}"
 			msg+=" with options #{opts}" unless opts.empty?
 			msg+=" with block #{block}" if block
-			logger.add(severity,msg)
+			add(severity,msg)
 			if opts.empty?
 				definee.send(*args, &block)
 			else
@@ -256,6 +256,8 @@ module ShellHelpers
 		def log_and_do(*args)
 			logger.log_and_do(*args)
 		end
+
+		LOG_LEVELS=logger.log_levels
 
 		#Include this in place of CLILogging if you prefer to use
 		#info directly rather than logger.info

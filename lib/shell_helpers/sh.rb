@@ -197,7 +197,7 @@ module ShellHelpers
 			if log
 				sh_logger.send(curopts[:log_level_execute], SimpleColor.color("Executing '#{command_name}'",:bold))
 				p_env, p_args, p_opts= Run.process_command(*command, **opts)
-				sh_logger.send(curopts[:log_level_execute_debug], SimpleColor.color("Debug execute: '#{[p_env, *p_args, p_opts]}'", :bold))
+				sh_logger.send(curopts[:log_level_execute_debug], SimpleColor.color("Debug execute: #{[p_env, *p_args, p_opts]}", :bold))
 			end
 
 			if !curopts[:dryrun]

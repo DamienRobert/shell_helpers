@@ -29,7 +29,7 @@ module ShellHelpers
 				return ShLog.sh(r)
 			when :exec_quiet
 				require 'shell_helpers/sh'
-				return Sh.sh(r)
+				return Sh.sh(*r)
 			end
 			return r
 		end
@@ -202,7 +202,7 @@ module ShellHelpers
 			path.map { |dir| Pathname.glob(dir+pattern) }.flatten
 		end
 
-		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, sudo: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, sshcommand: nil, exclude: [], **opts)
+		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, sshcommand: nil, exclude: [], **opts)
 			require 'shell_helpers/sh'
 			rsync_opts=[*opts.delete(:rsync_opts)] || []
 			rsync_opts << default_opts
@@ -237,7 +237,8 @@ module ShellHelpers
 				rsync_opts << sshcommand.shellescape
 			end
 			rsync_opts+=opts.delete(:rsync_late_opts)||[]
-			Sh.sh( (sudo ? ["sudo"] : [])+["rsync"]+rsync_opts+files.map(&:to_s)+[out.to_s], expected: expected, **opts)
+			cmd=["rsync"]+rsync_opts+files.map(&:to_s)+[out.to_s]
+			Sh.sh(*cmd, expected: expected, **opts)
 			#expected: rsync error code 23 is some files/attrs were not transferred
 		end
 
@@ -276,7 +277,7 @@ module ShellHelpers
 			case mode
 			when :system,:spawn,:capture,:exec
 				host="#{user}@#{host}" if user
-				Sh.sh([ssh_command]+ssh_options+[host]+commands, mode: mode, **opts)
+				Sh.sh(* [ssh_command]+ssh_options+[host]+commands, mode: mode, **opts)
 			when :net_ssh
 				require 'net/ssh'
 				user=nil;
