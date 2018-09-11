@@ -77,6 +77,7 @@ module ShellHelpers
 		#   if status.success? => on_success.call(status, out, err)
 		#		else error_mode.call(status, out, error)
 		#   rescue ... => fail_mode.call(e)
+		# return status, out, error
 		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, quiet: nil, **opts)
 			env, args, spawn_opts=Run.process_command(*args, **opts)
 
@@ -138,15 +139,18 @@ module ShellHelpers
 				end
 			end
 
-			return out, error, status if error
-			return out, status
+			# return out, error, status if error
+			return status, out, error
 		end
 
 		#a simple wrapper for %x//
+		#return the output; the block is called in case of an error
+		#eg SH.run_simple("echo foo; false") do p "error" end
+		#=> returns "foo\n" and prints error
 		def run_simple(*command, **opts, &b)
-			# here the block is called in case of failure
+			# here the block is called in case of error
 			opts[:error_mode]=b if b
-			out, *_rest = run(*command, **opts)
+			_status, out, _error = run(*command, **opts)
 			return out
 		end
 

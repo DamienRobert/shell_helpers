@@ -139,16 +139,18 @@ module ShellHelpers
 	end
 	# }}}
 
+	ShError=Class.new(StandardError)
 	module Sh
 		include CLILogging
 		extend self
 		attr_writer :default_sh_options
 		def default_sh_options
-			@default_sh_options||={log: true, capture: false, on_success: nil, on_failure: nil, expected:0, dryrun: false, escape: false,
+			@default_sh_options||={log: true, capture: false, on_success: nil, on_error: nil, expected:0, dryrun: false, escape: false,
 			log_level_execute_debug: :debug,
 			log_level_execute: :info, log_level_error: :error,
 			log_level_stderr: :error, log_level_stdout_success: :info,
-			log_level_stdout_fail: :warn, detach: false}
+			log_level_stdout_fail: :warn, detach: false,
+			mode: :system}
 		end
 
 		attr_writer :spawned
@@ -169,7 +171,7 @@ module ShellHelpers
 			when :system
 				system(env,*args,spawn_opts)
 			when :spawn, :detach
-				pid=spawn(env,*args,spawn_opts)
+				pid=spawn(env,*args,spawn_opts, &block)
 				if mode==:detach
 					Process.detach(pid) 
 				else
@@ -182,11 +184,13 @@ module ShellHelpers
 					end
 				end
 			when :exec
-				exec(env,*args,spawn_opts)
+				exec(env,*args,spawn_opts, &block)
 			when :capture
 				Run.run_command(env,*args,spawn_opts, &block)
 			when :run
-				Run.run(env,*args,spawn_opts)
+				Run.run(env,*args,spawn_opts, &block)
+			else
+				raise ShError.new("In shrun, mode #{mode} not understood")
 			end
 		end
 
@@ -197,7 +201,7 @@ module ShellHelpers
 		# error output is logged at WARN.
 		#						+:expected+:: an Int or Array of Int representing error codes, <b>in addition to 0</b>, that are expected and therefore constitute success.  Useful for commands that don't use exit codes the way you'd like
 		#			name: pretty name of command
-		#			on_success,on_failure: blocks to call on success/failure
+		#			on_success,on_error: blocks to call on success/failure
 		# block:: if provided, will be called if the command exited nonzero.	The block may take 0, 1, 2, or 3 arguments.
 		#					The arguments provided are the standard output as a string, standard error as a string, and the processstatus as SH::ProcessStatus
 		#					You should be safe to pass in a lambda instead of a block, as long as your lambda doesn't take more than three arguments
@@ -213,7 +217,11 @@ module ShellHelpers
 		#
 		# Returns the exit status of the command (Note that if the command doesn't exist, this returns 127.), stdout, stderr and the full status of the command
 
-		def sh(*command, argv0: nil, **opts, &block)
+		# callbacks: on_success, on_error
+		# yield process_status.success?,stdout,stderr,process_status if block_given?
+		# returns success; except in capture mode where it returns success,
+		# stdout, stderr, process_status
+		def sh(*command, argv0: nil, **opts)
 			defaults=default_sh_options
 			curopts=defaults.dup
 			defaults.keys.each do |k|
@@ -244,15 +252,9 @@ module ShellHelpers
 					_pid = shrun(*command,**opts, mode: mode)
 					status=0; stdout=nil; stderr=nil
 				elsif curopts[:mode]==:run
-					*res=shrun(*command,**opts,mode: :capture)
-					case res.length
-					when 2
-						stdout, status=res; stderr=nil
-					when 3
-						stdout, stderr, status=res
-					end
+					status, stdout, stderr=shrun(*command,mode: curopts[:mode], **opts)
 				else
-					mode=curopts[:mode]||:system
+					mode = curopts[:mode] || :system
 					shrun(*command,mode: mode, **opts)
 					status=$?; stdout=nil; stderr=nil
 				end
@@ -266,16 +268,17 @@ module ShellHelpers
 			if process_status.success?
 				sh_logger.send(curopts[:log_level_stdout_success], SimpleColor.color("stdout output of '#{command_name}':\n",:bold,:green)+stdout) unless stdout.nil? or stdout.strip.length == 0 or !log
 				curopts[:on_success].call(stdout,stderr,process_status) unless curopts[:on_success].nil?
-				block.call(stdout,stderr,process_status) unless block.nil?
+				# block.call(stdout,stderr,process_status) unless block.nil?
 			else
 				sh_logger.send(curopts[:log_level_stdout_fail], SimpleColor.color("stdout output of '#{command_name}':\n",:bold,:yellow)+stdout) unless stdout.nil? or stdout.strip.length == 0 or !log
 				sh_logger.send(curopts[:log_level_error], SimpleColor.color("Error running '#{command_name}': #{process_status.status}",:red,:bold)) if log
-				curopts[:on_failure].call(stdout,stderr,process_status) unless curopts[:on_failure].nil?
+				curopts[:on_error].call(stdout,stderr,process_status) unless curopts[:on_error].nil?
 			end
-			if block_given?
-				yield process_status.success?,stdout,stderr,process_status
-			else
+			yield process_status.success?,stdout,stderr,process_status if block_given?
+			if curopts[:capture] || curopts[:mode]==:capture || curopts[:mode]==:run
 				return process_status.success?,stdout,stderr,process_status
+			else
+				return process_status.success?
 			end
 
 		rescue SystemCallError => ex
@@ -297,11 +300,11 @@ module ShellHelpers
 		#			sh!("rsync foo bar", :failure_msg => "Couldn't rsync, check log for details")
 		#			# => if command fails, app exits and user sees: "error: Couldn't rsync, check log for details
 		def sh!(*args,failure_msg: nil,**opts, &block)
-			on_failure=Proc.new do |*blockargs|
+			on_error=Proc.new do |*blockargs|
 				process_status=blockargs.last
 				raise FailedCommandError.new(process_status.exitstatus,command_name(args),failure_msg: failure_msg)
 			end
-			sh(*args,**opts,on_failure: on_failure,&block)
+			sh(*args,**opts,on_error: on_error,&block)
 		end
 
 		# Override the default logger (which is the one provided by CLILogging).
