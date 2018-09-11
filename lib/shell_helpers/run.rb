@@ -73,6 +73,10 @@ module ShellHelpers
 		end
 
 		#by default capture stdout and status
+		# callbacks: yield status.success?, out, err, status if block_given?
+		#   if status.success? => on_success.call(status, out, err)
+		#		else error_mode.call(status, out, error)
+		#   rescue ... => fail_mode.call(e)
 		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, quiet: nil, **opts)
 			env, args, spawn_opts=Run.process_command(*args, **opts)
 

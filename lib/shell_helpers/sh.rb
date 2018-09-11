@@ -162,7 +162,7 @@ module ShellHelpers
 		# callback called by sh to select the exec mode
 		# mode: :system,:spawn,:exec,:capture
 		# opts: sudo, env
-		def shrun(*args,mode: :system, **opts)
+		def shrun(*args,mode: :system, block: nil, **opts)
 			env, args, spawn_opts=Run.process_command(*args, **opts)
 			# p env, args, spawn_opts
 			case mode
@@ -184,7 +184,7 @@ module ShellHelpers
 			when :exec
 				exec(env,*args,spawn_opts)
 			when :capture
-				Run.run_command(env,*args,spawn_opts)
+				Run.run_command(env,*args,spawn_opts, &block)
 			when :run
 				Run.run(env,*args,spawn_opts)
 			end
@@ -211,7 +211,7 @@ module ShellHelpers
 		#				# ...
 		#			end
 		#
-		# Returns the exit status of the command.  Note that if the command doesn't exist, this returns 127.
+		# Returns the exit status of the command (Note that if the command doesn't exist, this returns 127.), stdout, stderr and the full status of the command
 
 		def sh(*command, **opts, &block)
 			defaults=default_sh_options
@@ -267,11 +267,19 @@ module ShellHelpers
 				sh_logger.send(curopts[:log_level_error], SimpleColor.color("Error running '#{command_name}': #{process_status.status}",:red,:bold)) if log
 				curopts[:on_failure].call(stdout,stderr,process_status) unless curopts[:on_failure].nil?
 			end
-			return process_status.success?,stdout,stderr,process_status
+			if block_given?
+				yield process_status.success?,stdout,stderr,process_status
+			else
+				return process_status.success?,stdout,stderr,process_status
+			end
 
 		rescue SystemCallError => ex
 			sh_logger.send(curopts[:log_level_error], SimpleColor.color("Error running '#{command_name}': #{ex.message}",:red,:bold)) if log
-			return 127
+			if block_given?
+				yield 127, nil, nil, nil
+			else
+				return 127, nil, nil, nil
+			end
 		end
 
 		# Run a command, throwing an exception if the command exited nonzero.
