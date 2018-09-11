@@ -213,7 +213,7 @@ module ShellHelpers
 		#
 		# Returns the exit status of the command (Note that if the command doesn't exist, this returns 127.), stdout, stderr and the full status of the command
 
-		def sh(*command, **opts, &block)
+		def sh(*command, argv0: nil, **opts, &block)
 			defaults=default_sh_options
 			curopts=defaults.dup
 			defaults.keys.each do |k|
@@ -222,7 +222,12 @@ module ShellHelpers
 			end
 
 			log=curopts[:log]
-			# command=command.first if command.length==1 and command.first.kind_of?(Array) #so that sh(["ls", "-a"]) works
+			command=[[command.first, argv0], *command[1..-1]] if argv0 and command.length > 1 and !curopts[:escape]
+
+			if command.length==1 and command.first.kind_of?(Array) #so that sh(["ls", "-a"]) works
+				command=command.first
+				command=[[command.first, argv0], *command[1..-1]] if argv0 and !curopts[:escape]
+			end
 			command_name = curopts[:name] || command_name(command) #this keep the options
 			command=command.shelljoin if curopts[:escape]
 			if log
@@ -316,6 +321,7 @@ module ShellHelpers
 			end
 		end
 
+		# returns only the success or failure
 		def sh_or_proc(cmd, *args, **opts, &b)
 			case cmd
 			when Proc

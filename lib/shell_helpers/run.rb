@@ -60,7 +60,7 @@ module ShellHelpers
 				env,*args=*args
 			end
 			env.merge!(opts.delete(:env)||{})
-			args=args.map {|arg| arg.to_s} if args.length > 1
+			args=args.map.with_index {|arg, i| i == 0 && arg.is_a?(Array) ? arg : arg.to_s} if args.length > 1
 			spawn_opts.merge!(opts)
 			if sudo
 				if args.length > 1
