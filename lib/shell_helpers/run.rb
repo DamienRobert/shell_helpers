@@ -154,6 +154,11 @@ module ShellHelpers
 			return out
 		end
 
+		def run_success(*command, **opts, &b)
+			status, _out, _error = run(*command, **opts, &b)
+			status.success?
+		end
+
 		#same as Run, but if we get interrupted once, we don't want to launch any more commands
 		module Interrupt #{{{
 			extend(self)
