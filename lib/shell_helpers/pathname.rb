@@ -1,4 +1,5 @@
 require 'pathname'
+require 'forwardable'
 
 #backports from ruby 2.1
 class Pathname
