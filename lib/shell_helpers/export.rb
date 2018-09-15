@@ -82,13 +82,13 @@ module ShellHelpers
 		#from {ploum: plim} return something like
 		#PLOUM=plim
 		#that can be evaluated by the shell
-		def export_variables(hash, local: false, export: false, prefix:"",upcase:true)
+		def export_variables(hash, inline: false, local: false, export: false, prefix:"",upcase:true)
 			names=hash.keys.map {|s| escape_name(s,prefix:prefix,upcase:upcase)}
 			r=""
 			r+="local #{names.join(" ")}\n" if local
-			hash.each do |k,v|
-				r+=export_variable(k,v,prefix:prefix,upcase:upcase)
-			end
+			r+=hash.map do |k,v|
+				export_variable(k,v,prefix:prefix,upcase:upcase).chomp
+			end.join(inline ? " " : "\n") + (inline ? "" : "\n")
 			r+="export #{names.join(" ")}\n" if export
 			return r
 		end

@@ -202,7 +202,7 @@ module ShellHelpers
 			path.map { |dir| Pathname.glob(dir+pattern) }.flatten
 		end
 
-		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, sshcommand: nil, exclude: [], **opts)
+		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, expected: 23, chown: nil, sshcommand: nil, exclude: [], **opts, &b)
 			require 'shell_helpers/sh'
 			rsync_opts=[*opts.delete(:rsync_opts)] || []
 			rsync_opts << default_opts
@@ -238,16 +238,16 @@ module ShellHelpers
 			end
 			rsync_opts+=opts.delete(:rsync_late_opts)||[]
 			cmd=["rsync"]+rsync_opts+files.map(&:to_s)+[out.to_s]
-			Sh.sh(*cmd, expected: expected, **opts)
+			Sh.sh(*cmd, expected: expected, **opts, &b)
 			#expected: rsync error code 23 is some files/attrs were not transferred
 		end
 
 		# host can be of the form user@host:port
 		# warning this is different from standard ssh syntax of user@host:path
-		def ssh(host, *commands, mode: :exec, ssh_command: 'ssh',
+		def ssh(host, *commands, mode: :system, ssh_command: 'ssh',
 			ssh_options: [], ssh_Ooptions: [],
 			port: nil, forward: nil, x11: nil, user: nil, path: nil, parse: true,
-			pty: nil,
+			pty: nil, ssh_env:nil,
 			**opts)
 
 			#sshkit has a special setting for :local
@@ -277,7 +277,8 @@ module ShellHelpers
 			case mode
 			when :system,:spawn,:capture,:exec
 				host="#{user}@#{host}" if user
-				Sh.sh(* [ssh_command]+ssh_options+[host]+commands, mode: mode, **opts)
+				env_commands= ssh_env ? [Export.export_variables(ssh_env, inline: true)]+commands : commands
+				Sh.sh(* [ssh_command]+ssh_options+[host]+env_commands, mode: mode, **opts)
 			when :net_ssh
 				require 'net/ssh'
 				user=nil;
