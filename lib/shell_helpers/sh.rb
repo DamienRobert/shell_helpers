@@ -59,13 +59,17 @@ module ShellHelpers
 	# }}}
 	
 	# SudoLoop {{{
-	# include this module to run a sudo loop
+	# extend SudoLoop.configure to run a sudo loop
+	# SH.sh("ls /", sudo: "sudo".extend(SH::SudoLoop.configure(**opts))
 	module SudoLoop
 		extend self
 		def configure(**opts)
 			return Module.new do |m|
 				m.define_method(:sudo_loop) do
-					SudoLoop.run_sudo_loop(**opts)
+					SudoLoop.instance_method(:run_sudo_loop).bind(self).call(**opts)
+				end
+				m.define_method(:stop_sudo_loop) do
+					SudoLoop.instance_method(:stop_sudo_loop).bind(self).call
 				end
 			end
 		end
@@ -73,6 +77,7 @@ module ShellHelpers
 		def run_sudo_loop(command: "sudo -v", interval: 30, init_command: command)
 			if @sudo_loop_thread.nil? or !@sudo_loop_thread.alive?
 				Sh.sh_or_proc(init_command, log: false)
+				#require 'pry'; binding.pry
 				@sudo_loop_thread = Thread.new do
 					loop do
 						Sh.sh_or_proc(command, log: false)
