@@ -36,6 +36,9 @@ module ShellHelpers
 		include ::ShellHelpers
 		extend self
 	end
+	def log(*args)
+		logger.add(*args)
+	end
 
 	# #include LogHelper to set up CLILogging with some convenience facilities
 	# module LogHelper

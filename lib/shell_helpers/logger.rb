@@ -61,6 +61,10 @@ module ShellHelpers
 		proxy_method :'datetime_format='
 
 		def add(severity, message = nil, progname = nil, &block) #:nodoc:
+			severity = INFO if severity == true
+			unless severity.is_a?(Integer)
+				severity=log_levels[severity.to_s.downcase]|| UNKNOWN
+			end
 			return true if severity == QUIET
 			if @split_logs
 				unless severity >= @stderr_logger.level
@@ -265,6 +269,7 @@ module ShellHelpers
 			extend self
 			include CLILogging
 
+			def quiet(progname = nil, &block); logger.quiet(progname,&block); end
 			def debug(progname = nil, &block); logger.debug(progname,&block); end
 			def info(progname = nil, &block); logger.info(progname,&block); end
 			def warns(progname = nil, &block); logger.warn(progname,&block); end
