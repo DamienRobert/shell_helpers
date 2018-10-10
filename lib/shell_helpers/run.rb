@@ -12,7 +12,7 @@ module ShellHelpers
 			if sudoarg.respond_to?(:sudo_loop)
 				sudoarg.sudo_loop
 			end
-			return "" unless sudoarg
+			return [] unless sudoarg
 			return sudoarg.shellsplit if sudoarg.is_a?(String)
 			["sudo"]
 		end

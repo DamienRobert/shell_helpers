@@ -242,6 +242,7 @@ module ShellHelpers
 				command=[[command.first, argv0], *command[1..-1]] if argv0 and !curopts[:escape]
 			end
 			command_name = curopts[:name] || command_name(command) #this keep the options
+			# this should not be needed
 			command=command.shelljoin if curopts[:escape]
 			if log
 				sh_logger.send(curopts[:log_level_execute], SimpleColor.color("Executing '#{command_name}'",:bold))
