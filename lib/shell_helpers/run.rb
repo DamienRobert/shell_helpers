@@ -7,15 +7,7 @@ module ShellHelpers
 		extend(self)
 		RunError=Class.new(StandardError)
 
-
-		def sudo_args(sudoarg)
-			if sudoarg.respond_to?(:sudo_loop)
-				sudoarg.sudo_loop
-			end
-			return [] unless sudoarg
-			return sudoarg.shellsplit if sudoarg.is_a?(String)
-			["sudo"]
-		end
+		## Trivial wrappers around Open3
 
 		#the run_* commands here capture all the output
 		def run_command(*command)
@@ -48,6 +40,19 @@ module ShellHelpers
 			r
 		end
 
+		## Launching a command
+		#handle sudo arguments
+
+		def sudo_args(sudoarg)
+			if sudoarg.respond_to?(:sudo_loop)
+				sudoarg.sudo_loop
+			end
+			return [] unless sudoarg
+			return sudoarg.shellsplit if sudoarg.is_a?(String)
+			["sudo"]
+		end
+
+		# get the args, environment and spawning options
 		def process_command(*args, **opts)
 			spawn_opts={}
 			if args.last.kind_of?(Hash)
@@ -72,6 +77,7 @@ module ShellHelpers
 			return env, args, spawn_opts
 		end
 
+		## Run a command
 		#by default capture stdout and status
 		# callbacks: yield status.success?, out, err, status if block_given?
 		#   if status.success? => on_success.call(status, out, err)
@@ -79,7 +85,7 @@ module ShellHelpers
 		#   rescue ... => fail_mode.call(e)
 		# return status, out, error
 		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, quiet: nil, **opts)
-			env, args, spawn_opts=Run.process_command(*args, **opts)
+			env, args, spawn_opts=Run.process_command(*args, sudo: sudo, **opts)
 
 			if args.length > 1
 				launch=args.shelljoin
@@ -88,11 +94,11 @@ module ShellHelpers
 			end
 			launch+=" 2>/dev/null" if error==:quiet or quiet
 			launch+=" >/dev/null" if output==:quiet
-			out=error=nil
+			out=err=nil
 
 			begin
 				if error==:capture
-					out, error, status=Open3.capture3(env, launch, spawn_opts)
+					out, err, status=Open3.capture3(env, launch, spawn_opts)
 				elsif output==:capture
 					out, status=Open3.capture2(env, launch, spawn_opts)
 				else
@@ -126,7 +132,7 @@ module ShellHelpers
 				when :error
 					raise RunError.new("Error running command '#{launch}': #{status}")
 				when Proc
-					error_mode.call(status, out, error)
+					error_mode.call(status, out, err)
 				end
 			end
 			if chomp and out
@@ -140,7 +146,7 @@ module ShellHelpers
 			end
 
 			# return out, error, status if error
-			return status, out, error
+			return status, out, err
 		end
 
 		#a simple wrapper for %x//
@@ -154,6 +160,7 @@ module ShellHelpers
 			return out
 		end
 
+		# like run, but only returns status.success?
 		def run_success(*command, **opts, &b)
 			status, _out, _error = run(*command, **opts, &b)
 			status.success?

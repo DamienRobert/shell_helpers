@@ -47,7 +47,7 @@ module ShellHelpers
 			end
 			opts=%w(a b c d f i l n s S T)
 			stats=Run.run_simple("stat --file-system --format='#{opts.map{|o| "%#{o}\n"}.join}' #{file.shellescape}", chomp: :lines)
-			stats=stats.each_line.map {|l| l.chomp}
+			#stats=stats.each_line.map {|l| l.chomp}
 			r={}
 			r[:userfreeblocks]=stats[0].to_i
 			r[:totalblocks]=stats[1].to_i

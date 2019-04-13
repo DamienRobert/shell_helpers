@@ -158,6 +158,8 @@ module ShellHelpers
 		QUIET=-1
 
 		def log_levels
+			#note Logger::Severity is included into Logger, so we can access the
+			#severity levels directly
 			{
 				'quiet' => QUIET,
 				'debug' => Logger::DEBUG,
