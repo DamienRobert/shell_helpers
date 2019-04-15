@@ -79,6 +79,15 @@ module ShellHelpers
 		def quiet(progname = nil, &block)
 			add(QUIET, nil, progname, &block)
 		end
+		def debug1(progname = nil, &block)
+			add(DEBUG1, nil, progname, &block)
+		end
+		def debug2(progname = nil, &block)
+			add(DEBUG2, nil, progname, &block)
+		end
+		def debug3(progname = nil, &block)
+			add(DEBUG3, nil, progname, &block)
+		end
 
 
 		DEFAULT_ERROR_LEVEL = Logger::Severity::WARN
@@ -155,19 +164,26 @@ module ShellHelpers
 			end
 		end
 
-		QUIET=-1
-
-		def log_levels
-			#note Logger::Severity is included into Logger, so we can access the
-			#severity levels directly
+		DEBUG1=-1
+		DEBUG2=-2
+		DEBUG3=-3
+		QUIET=-9
+		#note Logger::Severity is included into Logger, so we can access the severity levels directly
+		LOG_LEVELS=
 			{
 				'quiet' => QUIET,
+				'debug1' => DEBUG1,
+				'debug2' => DEBUG2,
+				'debug3' => DEBUG3,
 				'debug' => Logger::DEBUG,
 				'info' => Logger::INFO,
 				'warn' => Logger::WARN,
 				'error' => Logger::ERROR,
 				'fatal' => Logger::FATAL,
 			}
+
+		def log_levels
+			LOG_LEVELS
 		end
 
 		private def toggle_log_level
