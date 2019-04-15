@@ -130,6 +130,17 @@ module ShellHelpers
 			end
 		end
 
+		# like level= but for clis, so can pass a string
+		def cli_level(level, default: Logger::INFO)
+			level=default if level==true #for cli
+			if level.is_a?(Integer)
+				self.level=level
+			else
+				level=level.to_s
+				self.level=log_levels.fetch(level)
+			end
+		end
+
 		# Set the threshold for what messages go to the error device.  Note
 		# that calling #level= will *not* affect the error logger *unless* both
 		# devices are TTYs.
@@ -186,12 +197,12 @@ module ShellHelpers
 			LOG_LEVELS
 		end
 
-		private def toggle_log_level
+		private def toggle_log_level(toggle='debug')
 			@log_level_original = self.level unless @log_level_toggled
 			logger.level = if @log_level_toggled
 											 @log_level_original
 										 else
-											 log_levels.fetch('debug')
+											 log_levels.fetch(toggle)
 										 end
 			@log_level_toggled = !@log_level_toggled
 			@log_level = logger.level

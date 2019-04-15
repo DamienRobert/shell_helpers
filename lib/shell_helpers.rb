@@ -25,10 +25,10 @@ module ShellHelpers
 	include SysUtils #mount, find_devices...
 	extend self
 	#activates debug mode
-	def self.debug(level=Logger::DEBUG)
+	def self.debug(level=true)
 		#activates logging on Pathname
 		Pathname.send(:include, CLILogging)
-		logger.level=(level)
+		logger.cli_level(level, default: Logger::DEBUG)
 	end
 	#include SH::FU to add FileUtils
 	module FU
