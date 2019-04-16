@@ -3,6 +3,78 @@
 require 'logger'
 
 module ShellHelpers
+	# like Logger but with more levels
+	class MoreLogger < Logger
+
+		DEBUG1=-1
+		DEBUG2=-2
+		DEBUG3=-3
+		VERBOSE=0.9
+		VERBOSE1=0.8
+		VERBOSE2=0.7
+		VERBOSE3=0.6
+		QUIET=-9
+		#note Logger::Severity is included into Logger, so we can access the severity levels directly
+		LOG_LEVELS=
+			{
+				'quiet' => QUIET,
+				'debug1' => DEBUG1,
+				'debug2' => DEBUG2,
+				'debug3' => DEBUG3,
+				'debug' => Logger::DEBUG, #0
+				'verbose' => VERBOSE,
+				'verbose1' => VERBOSE1,
+				'verbose2' => VERBOSE2,
+				'verbose3' => VERBOSE3,
+				'info' => Logger::INFO, #1
+				'warn' => Logger::WARN, #2
+				'error' => Logger::ERROR, #3
+				'fatal' => Logger::FATAL, #4
+				'unknown' => Logger::UNKNOWN, #4
+			}
+
+		def log_levels
+			LOG_LEVELS
+		end
+
+		LOG_LEVELS.each do |lvl, cst|
+			unless ['debug', 'info', 'warn', 'fatal'].include?(lvl)
+				define_method(lvl.to_sym) do |progname=nil, &block|
+					add(cst, nil, progname, &block)
+				end
+			end
+		end
+
+		def level=(severity)
+			if severity.is_a?(Integer) or severity.is_a?(Float)
+				@level = severity
+			else
+				level = LOG_LEVELS[severity.to_s.downcase]
+				if level
+					@level = level
+				else
+					raise ArgumentError, "invalid log level: #{severity}"
+				end
+			end
+		end
+
+		# like level= but for clis, so we can pass a default if level=true
+		def cli_level(level, default: Logger::INFO)
+			level=default if level==true #for cli
+			self.level=level
+		end
+
+		# log with given security. Also accepts 'true'
+		def add(severity, message = nil, progname = nil, &block)
+			severity = INFO if severity == true
+			unless severity.is_a?(Integer) or severity.is_a?(Float)
+				severity=log_levels[severity.to_s.downcase] || UNKNOWN
+			end
+			return true if severity == QUIET
+			super(severity,message,progname,&block)
+		end
+
+	end
 	# CLILogger {{{
 	# A Logger instance that gives better control of messaging the user and
 	# logging app activity.  At it's most basic, you would use <tt>info</tt>
@@ -40,7 +112,7 @@ module ShellHelpers
 	#			logger = CLILogger.new('logfile.txt')
 	#			logger.debug("Starting up") #=> logfile.txt gets this
 	#			logger.error("Something went wrong!") # => BOTH logfile.txt AND the standard error get this
-	class CLILogger < Logger
+	class CLILogger < MoreLogger
 		BLANK_FORMAT = lambda { |severity,datetime,progname,msg|
 			msg + "\n"
 		}
@@ -61,11 +133,6 @@ module ShellHelpers
 		proxy_method :'datetime_format='
 
 		def add(severity, message = nil, progname = nil, &block) #:nodoc:
-			severity = INFO if severity == true
-			unless severity.is_a?(Integer)
-				severity=log_levels[severity.to_s.downcase]|| UNKNOWN
-			end
-			return true if severity == QUIET
 			if @split_logs
 				unless severity >= @stderr_logger.level
 					super(severity,message,progname,&block)
@@ -75,20 +142,6 @@ module ShellHelpers
 			end
 			@stderr_logger.add(severity,message,progname,&block)
 		end
-
-		def quiet(progname = nil, &block)
-			add(QUIET, nil, progname, &block)
-		end
-		def debug1(progname = nil, &block)
-			add(DEBUG1, nil, progname, &block)
-		end
-		def debug2(progname = nil, &block)
-			add(DEBUG2, nil, progname, &block)
-		end
-		def debug3(progname = nil, &block)
-			add(DEBUG3, nil, progname, &block)
-		end
-
 
 		DEFAULT_ERROR_LEVEL = Logger::Severity::WARN
 
@@ -106,7 +159,7 @@ module ShellHelpers
 		# +error_device+:: device where all error messages should go.
 		def initialize(log_device=$stdout,error_device=$stderr,
 									 split_log: :auto)
-			@stderr_logger = Logger.new(error_device)
+			@stderr_logger = MoreLogger.new(error_device)
 
 			super(log_device)
 
@@ -123,21 +176,17 @@ module ShellHelpers
 		end
 
 		def level=(level)
-			super(level)
+			level=super
 			#current_error_level = @stderr_logger.level
 			if (level > DEFAULT_ERROR_LEVEL) && @split_logs
 				@stderr_logger.level = level
 			end
 		end
 
-		# like level= but for clis, so can pass a string
 		def cli_level(level, default: Logger::INFO)
-			level=default if level==true #for cli
-			if level.is_a?(Integer)
-				self.level=level
-			else
-				level=level.to_s
-				self.level=log_levels.fetch(level)
+			level=super
+			if (level > DEFAULT_ERROR_LEVEL) && @split_logs
+				@stderr_logger.level = level
 			end
 		end
 
@@ -173,28 +222,6 @@ module ShellHelpers
 			else
 				definee.send(*args, **opts, &block)
 			end
-		end
-
-		DEBUG1=-1
-		DEBUG2=-2
-		DEBUG3=-3
-		QUIET=-9
-		#note Logger::Severity is included into Logger, so we can access the severity levels directly
-		LOG_LEVELS=
-			{
-				'quiet' => QUIET,
-				'debug1' => DEBUG1,
-				'debug2' => DEBUG2,
-				'debug3' => DEBUG3,
-				'debug' => Logger::DEBUG,
-				'info' => Logger::INFO,
-				'warn' => Logger::WARN,
-				'error' => Logger::ERROR,
-				'fatal' => Logger::FATAL,
-			}
-
-		def log_levels
-			LOG_LEVELS
 		end
 
 		private def toggle_log_level(toggle='debug')
