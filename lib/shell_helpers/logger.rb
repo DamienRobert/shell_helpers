@@ -6,13 +6,13 @@ module ShellHelpers
 	# like Logger but with more levels
 	class MoreLogger < Logger
 
-		DEBUG1=-1
-		DEBUG2=-2
-		DEBUG3=-3
+		DEBUG1=0 #=DEBUG
+		DEBUG2=-1
+		DEBUG3=-2
 		VERBOSE=0.9
-		VERBOSE1=0.8
-		VERBOSE2=0.7
-		VERBOSE3=0.6
+		VERBOSE1=0.9
+		VERBOSE2=0.8
+		VERBOSE3=0.7
 		QUIET=-9
 		#note Logger::Severity is included into Logger, so we can access the severity levels directly
 		LOG_LEVELS=
@@ -45,16 +45,21 @@ module ShellHelpers
 			end
 		end
 
-		def level=(severity)
+		private def severity_to_level(severity, default: INFO)
+			severity = default if severity == true
 			if severity.is_a?(Integer) or severity.is_a?(Float)
-				@level = severity
+				return severity
 			else
-				level = LOG_LEVELS[severity.to_s.downcase]
-				if level
-					@level = level
-				else
-					raise ArgumentError, "invalid log level: #{severity}"
-				end
+				return LOG_LEVELS[severity.to_s.downcase]
+			end
+		end
+
+		def level=(severity)
+			lvl = severity_to_level(severity)
+			if lvl
+				@level = lvl
+			else
+				raise ArgumentError, "invalid log level: #{severity}"
 			end
 		end
 
@@ -66,12 +71,7 @@ module ShellHelpers
 
 		# log with given security. Also accepts 'true'
 		def add(severity, message = nil, progname = nil, &block)
-			severity = INFO if severity == true
-			unless severity.is_a?(Integer) or severity.is_a?(Float)
-				severity=log_levels[severity.to_s.downcase] || UNKNOWN
-			end
-			return true if severity == QUIET
-			super(severity,message,progname,&block)
+			super(severity_to_level(severity),message,progname,&block)
 		end
 
 	end
@@ -133,6 +133,7 @@ module ShellHelpers
 		proxy_method :'datetime_format='
 
 		def add(severity, message = nil, progname = nil, &block) #:nodoc:
+			severity = severity_to_level(severity)
 			if @split_logs
 				unless severity >= @stderr_logger.level
 					super(severity,message,progname,&block)
@@ -176,17 +177,17 @@ module ShellHelpers
 		end
 
 		def level=(level)
-			level=super
+			super
 			#current_error_level = @stderr_logger.level
-			if (level > DEFAULT_ERROR_LEVEL) && @split_logs
-				@stderr_logger.level = level
+			if (self.level > DEFAULT_ERROR_LEVEL) && @split_logs
+				@stderr_logger.level = self.level
 			end
 		end
 
 		def cli_level(level, default: Logger::INFO)
-			level=super
-			if (level > DEFAULT_ERROR_LEVEL) && @split_logs
-				@stderr_logger.level = level
+			super
+			if (self.level > DEFAULT_ERROR_LEVEL) && @split_logs
+				@stderr_logger.level = self.level
 			end
 		end
 
@@ -212,7 +213,7 @@ module ShellHelpers
 
 		#log the action and execute it
 		#Severity is Logger:: DEBUG < INFO < WARN < ERROR < FATAL < UNKNOWN
-		def log_and_do(*args, severity: Logger::INFO, definee: self, **opts, &block)
+		def log_and_do(*args, severity: INFO, definee: self, **opts, &block)
 			msg="log_and_do #{args} on #{self}"
 			msg+=" with options #{opts}" unless opts.empty?
 			msg+=" with block #{block}" if block
