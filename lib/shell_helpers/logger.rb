@@ -73,10 +73,11 @@ module ShellHelpers
 			message = SimpleColor.color(message, *color) unless SimpleColor.color?(message)
 			add(severity, message, progname)
 		end
-		{success: :green, important: :blue, warn: :yellow,
-	 error: :red, fatal: :red}.each do |lvl, base_color|
+		base_colors={info: [:bold], success: [:green, :bold], important: [:blue, :bold], warn: [:yellow, :bold], error: [:red, :bold], fatal: [:red, :bold]}
+		LOG_LEVELS.each do |lvl, cst|
+			base_color=base_colors[lvl.to_sym]||[]
 			define_method("color_#{lvl}".to_sym) do |progname=nil, color: [], &block|
-				color_add(LOG_LEVELS[lvl.to_s], nil, progname, color: [*base_color, *color], &block)
+				color_add(cst, nil, progname, color: [*base_color, *color], &block)
 			end
 		end
 
