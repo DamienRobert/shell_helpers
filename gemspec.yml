@@ -9,6 +9,7 @@ homepage: https://github.com/DamienRobert/shell_helpers#readme
 
 dependencies:
   drain: ~> 0.2
+  simplecolor: ~> 0.2
 development_dependencies:
   minitest: "~> 5.0"
   rake: "~> 10"

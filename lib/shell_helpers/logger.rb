@@ -1,14 +1,17 @@
 # vim: foldmethod=marker
 #From methadone (cli_logger.rb, cli_logging.rb, last import: 4626a2bca9b6e54077a06a0f8e11a04fadc6e7ae; 2017-01-19)
 require 'logger'
+require 'simplecolor'
 
 module ShellHelpers
 	# like Logger but with more levels
 	class MoreLogger < Logger
 
 		DEBUG1=0 #=DEBUG
-		DEBUG2=-1
-		DEBUG3=-2
+		DEBUG2=-0.1
+		DEBUG3=-0.2
+		IMPORTANT=1.5 #between warning and info
+		SUCCESS=1.3 #between warning and info
 		VERBOSE=0.9
 		VERBOSE1=0.9
 		VERBOSE2=0.8
@@ -18,19 +21,21 @@ module ShellHelpers
 		LOG_LEVELS=
 			{
 				'quiet' => QUIET,
-				'debug1' => DEBUG1,
-				'debug2' => DEBUG2,
 				'debug3' => DEBUG3,
+				'debug2' => DEBUG2,
+				'debug1' => DEBUG1,
 				'debug' => Logger::DEBUG, #0
 				'verbose' => VERBOSE,
 				'verbose1' => VERBOSE1,
 				'verbose2' => VERBOSE2,
 				'verbose3' => VERBOSE3,
 				'info' => Logger::INFO, #1
+				'success' => SUCCESS,
+				'important' => IMPORTANT,
 				'warn' => Logger::WARN, #2
 				'error' => Logger::ERROR, #3
 				'fatal' => Logger::FATAL, #4
-				'unknown' => Logger::UNKNOWN, #4
+				'unknown' => Logger::UNKNOWN, #5
 			}
 
 		def log_levels
@@ -42,6 +47,36 @@ module ShellHelpers
 				define_method(lvl.to_sym) do |progname=nil, &block|
 					add(cst, nil, progname, &block)
 				end
+				define_method("#{lvl}?".to_sym) do
+					@level <= cst
+				end
+			end
+		end
+
+		def color_add(severity, message = nil, progname = nil, color: black)
+			severity ||= UNKNOWN
+			if @logdev.nil? or severity < @level
+				return true
+			end
+			if progname.nil?
+				progname = @progname
+			end
+			if message.nil?
+				if block_given?
+					message = yield
+				else
+					message = progname
+					progname = @progname
+				end
+			end
+			message=message.to_s
+			message = SimpleColor.color(message, *color) unless SimpleColor.color?(message)
+			add(severity, message, progname)
+		end
+		{success: :green, important: :blue, warn: :yellow,
+	 error: :red, fatal: :red}.each do |lvl, base_color|
+			define_method("color_#{lvl}".to_sym) do |progname=nil, color: [], &block|
+				color_add(LOG_LEVELS[lvl.to_s], nil, progname, color: [*base_color, *color], &block)
 			end
 		end
 
@@ -325,13 +360,11 @@ module ShellHelpers
 		module Shortcuts #{{{
 			extend self
 			include CLILogging
-
-			def quiet(progname = nil, &block); logger.quiet(progname,&block); end
-			def debug(progname = nil, &block); logger.debug(progname,&block); end
-			def info(progname = nil, &block); logger.info(progname,&block); end
-			def warns(progname = nil, &block); logger.warn(progname,&block); end
-			def error(progname = nil, &block); logger.error(progname,&block); end
-			def fatal(progname = nil, &block); logger.fatal(progname,&block); end
+			LOG_LEVELS.each do |lvl, _cst|
+				define_method(lvl.to_sym) do |progname=nil, &block|
+					logger.send(lvl.to_sym, progname, &block)
+				end
+			end
 		end
 		#}}}
 	end #}}}
