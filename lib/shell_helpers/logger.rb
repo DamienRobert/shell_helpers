@@ -50,10 +50,14 @@ module ShellHelpers
 			LOG_LEVELS.dup
 		end
 
-		def initialize(*args)
-			super
+		attr_accessor :default
+
+		def initialize(*args, levels: {}, cli: {}, default: Levels::INFO, **kwds)
+			@default=default
+			super(*args, **kwds)
 			klass=self.singleton_class
-			log_levels.each do |lvl, cst|
+			levels=log_levels.merge(levels)
+			levels.each do |lvl, cst|
 				unless ['debug', 'info', 'warn', 'fatal'].include?(lvl)
 					klass.define_method(lvl.to_sym) do |progname=nil, &block|
 						add(cst, nil, progname, &block)
@@ -63,9 +67,10 @@ module ShellHelpers
 					end
 				end
 			end
-			cli_colors.each do |lvl, _cli|
-				klass.define_method("cli_#{lvl}".to_sym) do |progname=nil, &block|
-					cli_add(lvl, nil, progname, &block)
+			cli=cli_colors.merge(cli)
+			cli.each do |lvl, _cli|
+				klass.define_method("cli_#{lvl}".to_sym) do |progname=nil, **kwds, &block|
+					cli_add(lvl, nil, progname, **kwds, &block)
 				end
 			end
 			yield self if block_given?
@@ -86,7 +91,7 @@ module ShellHelpers
 
 		# log with given security. Also accepts 'true'
 		def add(severity, message = nil, progname = nil, &block)
-			super(severity_to_level(severity),message,progname,&block)
+			super(severity(severity),message,progname,&block)
 		end
 
 		def cli_add(severity, message = nil, progname = nil, color: [])
@@ -118,7 +123,7 @@ module ShellHelpers
 			add(severity, message, progname)
 		end
 
-		private def severity_to_level(severity, default: INFO)
+		def severity(severity, default: @default)
 			severity = default if severity == true
 			if severity.is_a?(Numeric)
 				return severity
@@ -128,7 +133,7 @@ module ShellHelpers
 		end
 
 		def level=(severity)
-			lvl = severity_to_level(severity)
+			lvl = severity(severity)
 			if lvl
 				@level = lvl
 			else
@@ -137,7 +142,7 @@ module ShellHelpers
 		end
 
 		# like level= but for clis, so we can pass a default if level=true
-		def cli_level(level, default: Logger::INFO)
+		def cli_level(level, default: @default)
 			level=default if level==true #for cli
 			self.level=level
 		end
@@ -200,7 +205,7 @@ module ShellHelpers
 		proxy_method :'datetime_format='
 
 		def add(severity, message = nil, progname = nil, &block) #:nodoc:
-			severity = severity_to_level(severity)
+			severity = severity(severity)
 			if @split_logs
 				unless severity >= @stderr_logger.level
 					super(severity,message,progname,&block)
@@ -226,10 +231,10 @@ module ShellHelpers
 		# By default, this is Logger::Severity::WARN
 		# +error_device+:: device where all error messages should go.
 		def initialize(log_device=$stdout,error_device=$stderr,
-									 split_log: :auto)
-			@stderr_logger = MoreLogger.new(error_device)
+									 split_log: :auto, default_error: DEFAULT_ERROR_LEVEL, **kwds)
+			@stderr_logger = MoreLogger.new(error_device, default: default_error, **kwds)
 
-			super(log_device)
+			super(log_device, **kwds)
 
 			log_device_tty	 = tty?(log_device)
 			error_device_tty = tty?(error_device)
@@ -237,7 +242,7 @@ module ShellHelpers
 			@split_logs = log_device_tty && error_device_tty if split_log==:auto
 
 			self.level = Logger::Severity::INFO
-			@stderr_logger.level = DEFAULT_ERROR_LEVEL
+			@stderr_logger.level = @stderr_logger.default
 
 			self.formatter = BLANK_FORMAT if log_device_tty
 			@stderr_logger.formatter = BLANK_FORMAT if error_device_tty
@@ -246,14 +251,14 @@ module ShellHelpers
 		def level=(level)
 			super
 			#current_error_level = @stderr_logger.level
-			if (self.level > DEFAULT_ERROR_LEVEL) && @split_logs
+			if (self.level > @stderr_logger.default) && @split_logs
 				@stderr_logger.level = self.level
 			end
 		end
 
 		def cli_level(level, default: Logger::INFO)
 			super
-			if (self.level > DEFAULT_ERROR_LEVEL) && @split_logs
+			if (self.level > @stderr_logger.default) && @split_logs
 				@stderr_logger.level = self.level
 			end
 		end
