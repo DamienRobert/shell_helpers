@@ -46,7 +46,7 @@ module ShellHelpers
 				'unknown' => Levels::UNKNOWN, #5
 			}
 
-		CLI_COLORS={
+		CLI_COLORS_BASE={
 			info: [:bold],
 			success: [:green, :bold],
 			important: [:blue, :bold],
@@ -54,6 +54,7 @@ module ShellHelpers
 			error: [:red, :bold],
 			fatal: [:red, :bold]
 		}
+		CLI_COLORS={}
 
 		def log_levels
 			@levels ||= LOG_LEVELS.dup
@@ -79,7 +80,7 @@ module ShellHelpers
 			end
 			cli=cli_colors.merge!(cli)
 			cli.each do |lvl, _cli|
-				klass.define_method("cli_#{lvl}".to_sym) do |progname=nil, **kwds, &block|
+				klass.define_method(lvl.to_sym) do |progname=nil, **kwds, &block|
 					cli_add(lvl, nil, progname, **kwds, &block)
 				end
 			end
@@ -89,13 +90,14 @@ module ShellHelpers
 		def cli_colors
 			return @cli_colors if defined?(@cli_colors)
 			@cli_colors={}
-			base_colors=CLI_COLORS
+			base_colors=CLI_COLORS_BASE
 			log_levels.each do |k,v|
 				k=k.to_sym
 				r={lvl: v}
 				r[:colors]=base_colors[k] if base_colors.key?(k)
-				@cli_colors[k]=r
+				@cli_colors["cli_#{k}"]=r
 			end
+			@cli_colors.merge(CLI_COLORS)
 		end
 		#mode => {lvl: lvl, colors: colors }
 
@@ -108,7 +110,7 @@ module ShellHelpers
 			severity ||= UNKNOWN
 			color=[*color]
 			unless severity.is_a?(Numeric)
-				cli=cli_colors[severity.to_sym]
+				cli=cli_colors[severity.to_s]
 				if cli
 					severity=cli[:lvl]
 					color=*cli[:colors]+color
