@@ -46,8 +46,18 @@ module ShellHelpers
 				'unknown' => Levels::UNKNOWN, #5
 			}
 
+		CLI_COLORS={
+			info: [:bold],
+			success: [:green, :bold],
+			important: [:blue, :bold],
+			warn: [:yellow, :bold],
+			error: [:red, :bold],
+			fatal: [:red, :bold]
+		}
+
 		def log_levels
-			LOG_LEVELS.dup
+			@levels ||= LOG_LEVELS.dup
+			@levels
 		end
 
 		attr_accessor :default
@@ -56,7 +66,7 @@ module ShellHelpers
 			@default=default
 			super(*args, **kwds)
 			klass=self.singleton_class
-			levels=log_levels.merge(levels)
+			levels=log_levels.merge!(levels)
 			levels.each do |lvl, cst|
 				unless ['debug', 'info', 'warn', 'fatal'].include?(lvl)
 					klass.define_method(lvl.to_sym) do |progname=nil, &block|
@@ -67,7 +77,7 @@ module ShellHelpers
 					end
 				end
 			end
-			cli=cli_colors.merge(cli)
+			cli=cli_colors.merge!(cli)
 			cli.each do |lvl, _cli|
 				klass.define_method("cli_#{lvl}".to_sym) do |progname=nil, **kwds, &block|
 					cli_add(lvl, nil, progname, **kwds, &block)
@@ -79,7 +89,7 @@ module ShellHelpers
 		def cli_colors
 			return @cli_colors if defined?(@cli_colors)
 			@cli_colors={}
-			base_colors={info: [:bold], success: [:green, :bold], important: [:blue, :bold], warn: [:yellow, :bold], error: [:red, :bold], fatal: [:red, :bold]}
+			base_colors=CLI_COLORS
 			log_levels.each do |k,v|
 				k=k.to_sym
 				r={lvl: v}
@@ -125,10 +135,11 @@ module ShellHelpers
 
 		def severity(severity, default: @default)
 			severity = default if severity == true
+			return log_levels["quiet"] if severity == false
 			if severity.is_a?(Numeric)
 				return severity
 			else
-				return LOG_LEVELS[severity.to_s.downcase]
+				return log_levels[severity.to_s.downcase]
 			end
 		end
 
@@ -246,6 +257,7 @@ module ShellHelpers
 
 			self.formatter = BLANK_FORMAT if log_device_tty
 			@stderr_logger.formatter = BLANK_FORMAT if error_device_tty
+			yield self, @stderr_logger if block_given?
 		end
 
 		def level=(level)
