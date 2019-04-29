@@ -7,54 +7,99 @@ module ShellHelpers
 	# like Logger but with more levels
 	class MoreLogger < Logger
 
-		DEBUG1=0 #=DEBUG
-		DEBUG2=-0.1
-		DEBUG3=-0.2
-		IMPORTANT=1.5 #between warning and info
-		SUCCESS=1.3 #between warning and info
-		VERBOSE=0.9
-		VERBOSE1=0.9
-		VERBOSE2=0.8
-		VERBOSE3=0.7
-		QUIET=-9
+		module Levels
+			DEBUG1=0 #=DEBUG
+			DEBUG2=-0.1
+			DEBUG3=-0.2
+			IMPORTANT=1.5 #between warning and info
+			SUCCESS=1.3 #between warning and info
+			VERBOSE=0.9
+			VERBOSE1=0.9
+			VERBOSE2=0.8
+			VERBOSE3=0.7
+			QUIET=-9
+			DEBUG   = Logger::DEBUG # 0
+			INFO    = Logger::INFO # 1
+			WARN    = Logger::WARN # 2
+			ERROR   = Logger::ERROR # 3
+			FATAL   = Logger::FATAL # 4
+			UNKNOWN = Logger::UNKNOWN # 5
+		end
 		#note Logger::Severity is included into Logger, so we can access the severity levels directly
 		LOG_LEVELS=
 			{
-				'quiet' => QUIET,
-				'debug3' => DEBUG3,
-				'debug2' => DEBUG2,
-				'debug1' => DEBUG1,
-				'debug' => Logger::DEBUG, #0
-				'verbose' => VERBOSE,
-				'verbose1' => VERBOSE1,
-				'verbose2' => VERBOSE2,
-				'verbose3' => VERBOSE3,
-				'info' => Logger::INFO, #1
-				'success' => SUCCESS,
-				'important' => IMPORTANT,
-				'warn' => Logger::WARN, #2
-				'error' => Logger::ERROR, #3
-				'fatal' => Logger::FATAL, #4
-				'unknown' => Logger::UNKNOWN, #5
+				'quiet' => Levels::QUIET,
+				'debug3' => Levels::DEBUG3,
+				'debug2' => Levels::DEBUG2,
+				'debug1' => Levels::DEBUG1,
+				'debug' => Levels::DEBUG, #0
+				'verbose' => Levels::VERBOSE,
+				'verbose1' => Levels::VERBOSE1,
+				'verbose2' => Levels::VERBOSE2,
+				'verbose3' => Levels::VERBOSE3,
+				'info' => Levels::INFO, #1
+				'success' => Levels::SUCCESS,
+				'important' => Levels::IMPORTANT,
+				'warn' => Levels::WARN, #2
+				'error' => Levels::ERROR, #3
+				'fatal' => Levels::FATAL, #4
+				'unknown' => Levels::UNKNOWN, #5
 			}
 
 		def log_levels
-			LOG_LEVELS
+			LOG_LEVELS.dup
 		end
 
-		LOG_LEVELS.each do |lvl, cst|
-			unless ['debug', 'info', 'warn', 'fatal'].include?(lvl)
-				define_method(lvl.to_sym) do |progname=nil, &block|
-					add(cst, nil, progname, &block)
-				end
-				define_method("#{lvl}?".to_sym) do
-					@level <= cst
+		def initialize(*args)
+			super
+			klass=self.singleton_class
+			log_levels.each do |lvl, cst|
+				unless ['debug', 'info', 'warn', 'fatal'].include?(lvl)
+					klass.define_method(lvl.to_sym) do |progname=nil, &block|
+						add(cst, nil, progname, &block)
+					end
+					klass.define_method("#{lvl}?".to_sym) do
+						@level <= cst
+					end
 				end
 			end
+			cli_colors.each do |lvl, _cli|
+				klass.define_method("cli_#{lvl}".to_sym) do |progname=nil, &block|
+					cli_add(lvl, nil, progname, &block)
+				end
+			end
+			yield self if block_given?
 		end
 
-		def color_add(severity, message = nil, progname = nil, color: black)
+		def cli_colors
+			return @cli_colors if defined?(@cli_colors)
+			@cli_colors={}
+			base_colors={info: [:bold], success: [:green, :bold], important: [:blue, :bold], warn: [:yellow, :bold], error: [:red, :bold], fatal: [:red, :bold]}
+			log_levels.each do |k,v|
+				k=k.to_sym
+				r={lvl: v}
+				r[:colors]=base_colors[k] if base_colors.key?(k)
+				@cli_colors[k]=r
+			end
+		end
+		#mode => {lvl: lvl, colors: colors }
+
+		# log with given security. Also accepts 'true'
+		def add(severity, message = nil, progname = nil, &block)
+			super(severity_to_level(severity),message,progname,&block)
+		end
+
+		def cli_add(severity, message = nil, progname = nil, color: [])
 			severity ||= UNKNOWN
+			color=[*color]
+			unless severity.is_a?(Numeric)
+				cli=cli_colors[severity.to_sym]
+				if cli
+					severity=cli[:lvl]
+					color=*cli[:colors]+color
+				end
+			end
+
 			if @logdev.nil? or severity < @level
 				return true
 			end
@@ -69,21 +114,13 @@ module ShellHelpers
 					progname = @progname
 				end
 			end
-			message=message.to_s
-			message = SimpleColor.color(message, *color) unless SimpleColor.color?(message)
+			message = SimpleColor.color(message.to_s, *color)
 			add(severity, message, progname)
-		end
-		base_colors={info: [:bold], success: [:green, :bold], important: [:blue, :bold], warn: [:yellow, :bold], error: [:red, :bold], fatal: [:red, :bold]}
-		LOG_LEVELS.each do |lvl, cst|
-			base_color=base_colors[lvl.to_sym]||[]
-			define_method("color_#{lvl}".to_sym) do |progname=nil, color: [], &block|
-				color_add(cst, nil, progname, color: [*base_color, *color], &block)
-			end
 		end
 
 		private def severity_to_level(severity, default: INFO)
 			severity = default if severity == true
-			if severity.is_a?(Integer) or severity.is_a?(Float)
+			if severity.is_a?(Numeric)
 				return severity
 			else
 				return LOG_LEVELS[severity.to_s.downcase]
@@ -104,12 +141,6 @@ module ShellHelpers
 			level=default if level==true #for cli
 			self.level=level
 		end
-
-		# log with given security. Also accepts 'true'
-		def add(severity, message = nil, progname = nil, &block)
-			super(severity_to_level(severity),message,progname,&block)
-		end
-
 	end
 	# CLILogger {{{
 	# A Logger instance that gives better control of messaging the user and
