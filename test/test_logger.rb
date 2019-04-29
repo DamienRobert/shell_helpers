@@ -9,6 +9,11 @@ describe ShellHelpers::MoreLogger do
 	end
 	it "Has a color info mode" do
 		@logger.cli_info "foo"
+		# @buffer.string.must_equal "\e[1mfoo\e[0m\n"
+		@buffer.string.must_equal "foo\n"
+	end
+	it "Has a color mark mode" do
+		@logger.cli_mark "foo"
 		@buffer.string.must_equal "\e[1mfoo\e[0m\n"
 	end
 	it "Has a colored important mode" do

@@ -47,14 +47,16 @@ module ShellHelpers
 			}
 
 		CLI_COLORS_BASE={
-			info: [:bold],
+			# info: [:bold],
 			success: [:green, :bold],
 			important: [:blue, :bold],
 			warn: [:yellow, :bold],
 			error: [:red, :bold],
 			fatal: [:red, :bold]
 		}
-		CLI_COLORS={}
+		CLI_COLORS={
+			cli_mark: {lvl: :info, colors: :bold}
+		}
 
 		def log_levels
 			@levels ||= LOG_LEVELS.dup
@@ -95,9 +97,10 @@ module ShellHelpers
 				k=k.to_sym
 				r={lvl: v}
 				r[:colors]=base_colors[k] if base_colors.key?(k)
-				@cli_colors["cli_#{k}"]=r
+				@cli_colors["cli_#{k}".to_sym]=r
 			end
-			@cli_colors.merge(CLI_COLORS)
+			@cli_colors.merge!(CLI_COLORS)
+			@cli_colors
 		end
 		#mode => {lvl: lvl, colors: colors }
 
@@ -110,11 +113,12 @@ module ShellHelpers
 			severity ||= UNKNOWN
 			color=[*color]
 			unless severity.is_a?(Numeric)
-				cli=cli_colors[severity.to_s]
+				cli=cli_colors[severity.to_sym]
 				if cli
 					severity=cli[:lvl]
-					color=*cli[:colors]+color
+					color=[*cli[:colors]] + color
 				end
+				severity=severity(severity)
 			end
 
 			if @logdev.nil? or severity < @level
