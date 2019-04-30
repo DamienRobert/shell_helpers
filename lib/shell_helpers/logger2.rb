@@ -6,21 +6,9 @@ require 'simplecolor'
 module ShellHelpers
 	# like Logger but with more levels
 	class ColorLogger < Logger #{{{1
-		class Formatter < Logger::Formatter
-			def self.format_severity(severity)
-				Logger::SEV_LABEL[severity] || 'ANY'
-			end
-
-			def call(severity, time, progname, msg)
-				severity=self.class.format_severity(severity)
-				Format % [severity[0..0], format_datetime(time), $$, severity, progname,
-					msg2str(msg)]
-			end
-		end
-
-		class ColorFormatter #{{{1
-			CLI_COLORS_BASE={
-				# info: [:bold],
+		class ColorFormatter < Logger::Formatter
+			CLI_COLORS={
+				mark: [:bold],
 				success: [:green, :bold],
 				important: [:blue, :bold],
 				warn: [:yellow, :bold],
@@ -28,21 +16,43 @@ module ShellHelpers
 				fatal: [:red, :bold]
 			}
 
-			CLI_COLORS={
-				mark: {lvl: :info, colors: :bold}
-			}
+			BLANK_FORMAT = "%s\n"
 
-			def cli_colors
-				return @cli_colors if defined?(@cli_colors)
-				@cli_colors={}
-				base_colors=CLI_COLORS_BASE
-				base_colors.each do |k,v|
-					r={colors: v}
-					@cli_colors[k.to_sym]=r
+			def self.create(type)
+				return type if type.respond_to?(:call)
+				logger=self.new
+				case type
+				when :color
+					logger.cli_color=CLI_COLORS
+					logger.format=BLANK_FORMAT
 				end
-				@cli_colors.merge!(CLI_COLORS)
-				@cli_colors
-				#mode => {lvl: lvl, colors: colors }
+				logger
+			end
+
+			def self.format_severity(severity)
+				Logger::SEV_LABEL[severity] || 'ANY'
+			end
+
+			attr_writer :cli_colors, :format
+			def cli_colors
+				@cli_colors ||= {}
+			end
+			def format
+				@format ||= Logger::Formatter::FORMAT
+			end
+
+			def call(severity, time, progname, msg, color: [], raw: false, **kwds)
+				color=[*color]
+				unless severity.is_a?(Numeric)
+					cli=cli_colors[severity.to_sym]
+					if cli and !raw
+							color=[*cli[:colors]] + color
+						end
+					end
+				end
+				severity_name=self.class.format_severity(severity)
+				format % [severity_name[0..0], format_datetime(time), $$, severity_name,
+							progname, SimpleColor[msg2str(msg), *color]]
 			end
 		end
 
@@ -114,15 +124,15 @@ module ShellHelpers
 			end
 		end
 
-		attr_accessor :default, :active, :quiet
+		attr_accessor :default, :active, :quiet, :options
 
-		def initialize(*args, levels: {}, default: :info, active: :verbose, quiet: :warn, color: true, raw: false, **kwds)
+		def initialize(*args, levels: {}, default: :info, active: :verbose, quiet: :warn, default_formatter: :color, options: {}, **kwds)
 			@default=default
 			@active=active
 			@quiet=quiet
-			@raw=raw
+			@options={}
 			super(*args, **kwds)
-			@default_formatter = Formatter.new
+			@default_formatter = ColorFormatter.create(default_formatter)
 			@level=severity_lvl(@default)
 			klass=self.singleton_class
 			levels=log_levels.merge!(levels)
@@ -136,16 +146,34 @@ module ShellHelpers
 			end
 		end
 
-		def formatter(form)
-			@formatter || @default_formatter
+		def datetime_format=(datetime_format)
+			@default_formatter.datetime_format = datetime_format if @default_formatter.respond_to?(:datetime_format)
+			@formatter.datetime_format = datetime_format if @formatter.respond_to?(:datetime_format)
 		end
 
-		def format_message(severity, datetime, progname, msg, formatter: nil)
-			formatter(formatter).call(severity, datetime, progname, msg)
+		def datetime_format
+			@default_formatter.datetime_format if @default_formatter.respond_to?(:datetime_format)
+		end
+
+		def formatter=(form)
+			@formatter=formatter(form)
+		end
+
+		def formatter(form)
+			if form.nil?
+				@formatter || @default_formatter
+			else
+				formatter=ColorFormatter.create(form)
+				formatter.datetime_format = @default_formatter.datetime_format if formatter.respond_to?(:datetime_format) and @default_formatter.respond_to?(:datetime_format)
+			end
+		end
+
+		def format_message(severity, datetime, progname, msg, formatter: nil, **opts)
+			formatter(formatter).call(severity, datetime, progname, msg, **opts)
 		end
 
 		# log with given security. Also accepts 'true'
-		def add(severity, message = nil, progname = nil, default: @default, quiet: @quiet, callback: nil, formatter: nil)
+		def add(severity, message = nil, progname = nil, default: @default, quiet: @quiet, callback: nil, formatter: nil, **opts)
 			severity=severity(severity, default: default, quiet: quiet)
 			severity_lvl=severity_lvl(severity)
 			if @logdev.nil? or severity_lvl < @level
@@ -164,7 +192,7 @@ module ShellHelpers
 			end
 			callback.call(message, progname, severity) if callback
 			@logdev.write(
-				format_message(severity, Time.now, progname, message, formatter: formatter))
+				format_message(severity, Time.now, progname, message, formatter: formatter), caller: self, **opts)
 			true
 		end
 
@@ -177,55 +205,6 @@ module ShellHelpers
 			level=active if level==true #for cli
 			level=quiet if level==false #for cli
 			self.level=level
-		end
-	end
-
-
-		def add(severity, message = nil, progname = nil, color: [], raw: @raw, **args)
-			severity ||= UNKNOWN
-			severity=severity(severity)
-			color=[*color]
-			unless severity.is_a?(Numeric)
-				cli=cli_colors[severity.to_sym]
-				if cli
-					severity=cli[:lvl] if cli.key?(:lvl)
-					if !raw
-						color=[*cli[:colors]] + color
-					end
-				end
-			end
-			severity_lvl=severity_lvl(severity)
-
-			if @logdev.nil? or severity_lvl < @level
-				return true
-			end
-			if progname.nil?
-				progname = @progname
-			end
-			if message.nil?
-				if block_given?
-					message = yield
-				else
-					message = progname
-					progname = @progname
-				end
-			end
-			message = SimpleColor.color(message.to_s, *color)
-			super(severity_lvl, message, progname)
-		end
-
-		attr_accessor :raw
-
-		def initialize(*args, cli: {}, **kwds)
-			super(*args, **kwds)
-			klass=self.singleton_class
-			cli=cli_colors.merge!(cli)
-			(cli.keys - CLI_COLORS_BASE.keys).each do |lvl|
-				klass.define_method(lvl.to_sym) do |progname=nil, **opts, &block|
-					add(lvl, nil, progname, **opts, &block)
-				end
-			end
-			yield self if block_given?
 		end
 	end
 
