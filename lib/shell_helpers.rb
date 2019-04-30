@@ -28,7 +28,7 @@ module ShellHelpers
 	def self.debug(level=true)
 		#activates logging on Pathname
 		Pathname.send(:include, CLILogging)
-		logger.cli_level(level, default: Logger::DEBUG)
+		logger.cli_level(level, active: Logger::DEBUG)
 	end
 	#include SH::FU to add FileUtils
 	module FU

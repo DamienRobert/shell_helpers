@@ -5,9 +5,12 @@ require 'simplecolor'
 
 module ShellHelpers
 	# like Logger but with more levels
-	class MoreLogger < Logger
+	class MoreLogger < Logger #{{{1
+
+		WrongLevel=Class.new(StandardError)
 
 		module Levels
+			#note Logger::Severity is included into Logger, so we can access the severity levels directly
 			DEBUG1=0 #=DEBUG
 			DEBUG2=-0.1
 			DEBUG3=-0.2
@@ -25,7 +28,7 @@ module ShellHelpers
 			FATAL   = Logger::FATAL # 4
 			UNKNOWN = Logger::UNKNOWN # 5
 		end
-		#note Logger::Severity is included into Logger, so we can access the severity levels directly
+
 		LOG_LEVELS=
 			{
 				'quiet' => Levels::QUIET,
@@ -46,6 +49,69 @@ module ShellHelpers
 				'unknown' => Levels::UNKNOWN, #5
 			}
 
+		def log_levels
+			@levels ||= LOG_LEVELS.dup
+			@levels
+		end
+
+		attr_accessor :default, :active, :quiet
+
+		def initialize(*args, levels: {}, cli: {}, default: Levels::INFO, active: Levels::VERBOSE, quiet: Levels::QUIET, **kwds)
+			@default=default
+			@active=active
+			@quiet=quiet
+			super(*args, **kwds)
+			@level=@default
+			klass=self.singleton_class
+			levels=log_levels.merge!(levels)
+			levels.keys.each do |lvl, cst|
+				klass.define_method(lvl.to_sym) do |progname=nil, **opts, &block|
+					add(lvl.to_sym, nil, progname, **opts, &block)
+				end
+				klass.define_method("#{lvl}?".to_sym) do
+					@level <= cst
+				end
+			end
+		end
+
+		# log with given security. Also accepts 'true'
+		def add(severity, message = nil, progname = nil, &block)
+			super(severity(severity),message,progname,&block)
+		end
+
+		def severity(severity, default: @default, quiet: @quiet)
+			severity = default if severity == true
+			return quiet if severity == false
+			if severity.is_a?(Numeric)
+				return severity
+			else
+				sev=severity.to_s.downcase
+				if log_levels.key?(sev)
+					return log_levels[sev]
+				else
+					raise WrongLevel.new(severity)
+				end
+			end
+		end
+
+		def level=(severity)
+			lvl = severity(severity)
+			if lvl
+				@level = lvl
+			else
+				raise ArgumentError, "invalid log level: #{severity}"
+			end
+		end
+
+		# like level= but for clis, so we can pass a default if level=true
+		def cli_level(level, active: @active, quiet: @quiet)
+			level=active if level==true #for cli
+			level=quiet if level==false #for cli
+			self.level=level
+		end
+	end
+
+	class ColorLogger < MoreLogger #{{{1
 		CLI_COLORS_BASE={
 			# info: [:bold],
 			success: [:green, :bold],
@@ -54,69 +120,34 @@ module ShellHelpers
 			error: [:red, :bold],
 			fatal: [:red, :bold]
 		}
+
 		CLI_COLORS={
-			cli_mark: {lvl: :info, colors: :bold}
+			mark: {lvl: :info, colors: :bold}
 		}
-
-		def log_levels
-			@levels ||= LOG_LEVELS.dup
-			@levels
-		end
-
-		attr_accessor :default
-
-		def initialize(*args, levels: {}, cli: {}, default: Levels::INFO, **kwds)
-			@default=default
-			super(*args, **kwds)
-			klass=self.singleton_class
-			levels=log_levels.merge!(levels)
-			levels.each do |lvl, cst|
-				unless ['debug', 'info', 'warn', 'fatal'].include?(lvl)
-					klass.define_method(lvl.to_sym) do |progname=nil, &block|
-						add(cst, nil, progname, &block)
-					end
-					klass.define_method("#{lvl}?".to_sym) do
-						@level <= cst
-					end
-				end
-			end
-			cli=cli_colors.merge!(cli)
-			cli.each do |lvl, _cli|
-				klass.define_method(lvl.to_sym) do |progname=nil, **kwds, &block|
-					cli_add(lvl, nil, progname, **kwds, &block)
-				end
-			end
-			yield self if block_given?
-		end
 
 		def cli_colors
 			return @cli_colors if defined?(@cli_colors)
 			@cli_colors={}
 			base_colors=CLI_COLORS_BASE
-			log_levels.each do |k,v|
-				k=k.to_sym
-				r={lvl: v}
-				r[:colors]=base_colors[k] if base_colors.key?(k)
-				@cli_colors["cli_#{k}".to_sym]=r
+			base_colors.each do |k,v|
+				r={colors: v}
+				@cli_colors[k.to_sym]=r
 			end
 			@cli_colors.merge!(CLI_COLORS)
 			@cli_colors
-		end
-		#mode => {lvl: lvl, colors: colors }
-
-		# log with given security. Also accepts 'true'
-		def add(severity, message = nil, progname = nil, &block)
-			super(severity(severity),message,progname,&block)
+		  #mode => {lvl: lvl, colors: colors }
 		end
 
-		def cli_add(severity, message = nil, progname = nil, color: [])
+		def add(severity, message = nil, progname = nil, color: [], raw: @raw)
 			severity ||= UNKNOWN
 			color=[*color]
 			unless severity.is_a?(Numeric)
 				cli=cli_colors[severity.to_sym]
 				if cli
-					severity=cli[:lvl]
-					color=[*cli[:colors]] + color
+					severity=cli[:lvl] if cli.key?(:lvl)
+					if !raw
+						color=[*cli[:colors]] + color
+					end
 				end
 				severity=severity(severity)
 			end
@@ -136,35 +167,26 @@ module ShellHelpers
 				end
 			end
 			message = SimpleColor.color(message.to_s, *color)
-			add(severity, message, progname)
+			super(severity, message, progname)
 		end
 
-		def severity(severity, default: @default)
-			severity = default if severity == true
-			return log_levels["quiet"] if severity == false
-			if severity.is_a?(Numeric)
-				return severity
-			else
-				return log_levels[severity.to_s.downcase]
+		attr_accessor :raw
+
+		def initialize(*args, cli: {}, **kwds)
+			@raw=false
+			super(*args, **kwds)
+			klass=self.singleton_class
+			cli=cli_colors.merge!(cli)
+			(cli.keys - CLI_COLORS_BASE.keys).each do |lvl|
+				klass.define_method(lvl.to_sym) do |progname=nil, **opts, &block|
+					add(lvl, nil, progname, **opts, &block)
+				end
 			end
-		end
-
-		def level=(severity)
-			lvl = severity(severity)
-			if lvl
-				@level = lvl
-			else
-				raise ArgumentError, "invalid log level: #{severity}"
-			end
-		end
-
-		# like level= but for clis, so we can pass a default if level=true
-		def cli_level(level, default: @default)
-			level=default if level==true #for cli
-			self.level=level
+			yield self if block_given?
 		end
 	end
-	# CLILogger {{{
+
+	# CLILogger {{{1
 	# A Logger instance that gives better control of messaging the user and
 	# logging app activity.  At it's most basic, you would use <tt>info</tt>
 	# as a replacement for +puts+ and <tt>error</tt> as a replacement for
@@ -201,7 +223,7 @@ module ShellHelpers
 	#			logger = CLILogger.new('logfile.txt')
 	#			logger.debug("Starting up") #=> logfile.txt gets this
 	#			logger.error("Something went wrong!") # => BOTH logfile.txt AND the standard error get this
-	class CLILogger < MoreLogger
+	class CLILogger < ColorLogger
 		BLANK_FORMAT = lambda { |severity,datetime,progname,msg|
 			msg + "\n"
 		}
@@ -221,16 +243,16 @@ module ShellHelpers
 		proxy_method :'progname='
 		proxy_method :'datetime_format='
 
-		def add(severity, message = nil, progname = nil, &block) #:nodoc:
+		def add(severity, message = nil, progname = nil, **opts, &block) #:nodoc:
 			severity = severity(severity)
 			if @split_logs
 				unless severity >= @stderr_logger.level
-					super(severity,message,progname,&block)
+					super(severity,message,progname, **opts, &block)
 				end
 			else
-				super(severity,message,progname,&block)
+				super(severity,message,progname,**opts, &block)
 			end
-			@stderr_logger.add(severity,message,progname,&block)
+			@stderr_logger.add(severity,message,progname,**opts, &block)
 		end
 
 		DEFAULT_ERROR_LEVEL = Logger::Severity::WARN
@@ -337,8 +359,8 @@ module ShellHelpers
 		end
 
 	end
-	#}}}
-	# CLILogging {{{
+
+	# CLILogging {{{1
 	# Provides easier access to a shared DR::CLILogger instance.
 	# Include this module into your class, and #logger provides access to a
 	# shared logger. This is handy if you want all of your clases to have
