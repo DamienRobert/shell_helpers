@@ -55,15 +55,15 @@ module ShellHelpers
 			end
 
 			opt.on("--vv", "Verbose mode 2", "Similar to --log=verbose2") do |v|
-				recipient[:loglevel]=:verbose1 if v
+				recipient[:loglevel]=:verbose2 if v
 			end
 
 			opt.on("--vvv", "Verbose mode 3", "Similar to --log=verbose3") do |v|
-				recipient[:loglevel]=:verbose1 if v
+				recipient[:loglevel]=:verbose3 if v
 			end
 
-			opt.on("--[no-]quiet", "-q", "Quiet mode", "Similar to --log=quiet") do |v|
-				recipient[:loglevel]=:quiet if v
+			opt.on("--[no-]quiet", "-q", "Quiet mode", "Similar to --log=warn") do |v|
+				recipient[:loglevel]=:warn if v
 			end
 		end
 
@@ -75,7 +75,7 @@ module ShellHelpers
 				if debug=="pry"
 					puts "# Launching pry"
 					require 'pry'; binding.pry
-				elsif
+				elsif debug
 					SH.debug(debug)
 				end
 			end

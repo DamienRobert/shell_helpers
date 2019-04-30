@@ -6,6 +6,17 @@ require 'simplecolor'
 module ShellHelpers
 	# like Logger but with more levels
 	class MoreLogger < Logger #{{{1
+		class Formatter < Logger::Formatter
+			def self.format_severity(severity)
+				Logger::SEV_LABEL[severity] || 'ANY'
+			end
+
+			def call(severity, time, progname, msg)
+				severity=self.class.format_severity(severity)
+				Format % [severity[0..0], format_datetime(time), $$, severity, progname,
+					msg2str(msg)]
+			end
+		end
 
 		WrongLevel=Class.new(StandardError)
 
@@ -21,11 +32,11 @@ module ShellHelpers
 			VERBOSE2=0.8
 			VERBOSE3=0.7
 			QUIET=-9
-			DEBUG   = Logger::DEBUG # 0
-			INFO    = Logger::INFO # 1
-			WARN    = Logger::WARN # 2
-			ERROR   = Logger::ERROR # 3
-			FATAL   = Logger::FATAL # 4
+			DEBUG		= Logger::DEBUG # 0
+			INFO		= Logger::INFO # 1
+			WARN		= Logger::WARN # 2
+			ERROR		= Logger::ERROR # 3
+			FATAL		= Logger::FATAL # 4
 			UNKNOWN = Logger::UNKNOWN # 5
 		end
 
@@ -56,12 +67,13 @@ module ShellHelpers
 
 		attr_accessor :default, :active, :quiet
 
-		def initialize(*args, levels: {}, default: Levels::INFO, active: Levels::VERBOSE, quiet: Levels::QUIET, **kwds)
+		def initialize(*args, levels: {}, default: :info, active: :verbose, quiet: :warn, **kwds)
 			@default=default
 			@active=active
 			@quiet=quiet
 			super(*args, **kwds)
-			@level=@default
+			@default_formatter = Formatter.new
+			@level=severity_lvl(@default)
 			klass=self.singleton_class
 			levels=log_levels.merge!(levels)
 			levels.keys.each do |lvl, cst|
@@ -75,13 +87,38 @@ module ShellHelpers
 		end
 
 		# log with given security. Also accepts 'true'
-		def add(severity, message = nil, progname = nil, &block)
-			super(severity(severity),message,progname,&block)
+		def add(severity, message = nil, progname = nil, default: @default, quiet: @quiet, callback: nil)
+			severity=severity(severity, default: default, quiet: quiet)
+			severity_lvl=severity_lvl(severity)
+			if @logdev.nil? or severity_lvl < @level
+				return true
+			end
+			if progname.nil?
+				progname = @progname
+			end
+			if message.nil?
+				if block_given?
+					message = yield
+				else
+					message = progname
+					progname = @progname
+				end
+			end
+			callback.call(message, progname, severity) if callback
+			@logdev.write(
+				format_message(format_severity(severity), Time.now, progname, message))
+			true
 		end
 
 		def severity(severity, default: @default, quiet: @quiet)
-			severity = default if severity == true
-			return quiet if severity == false
+			severity ||= UNKNOWN
+			severity=default if severity == true
+			severity=quiet if severity == false
+			severity
+		end
+
+		def severity_lvl(severity, **opts)
+			severity=severity(severity, **opts)
 			if severity.is_a?(Numeric)
 				return severity
 			else
@@ -95,12 +132,7 @@ module ShellHelpers
 		end
 
 		def level=(severity)
-			lvl = severity(severity)
-			if lvl
-				@level = lvl
-			else
-				raise ArgumentError, "invalid log level: #{severity}"
-			end
+			@level = severity_lvl(severity)
 		end
 
 		# like level= but for clis, so we can pass a default if level=true
@@ -135,11 +167,12 @@ module ShellHelpers
 			end
 			@cli_colors.merge!(CLI_COLORS)
 			@cli_colors
-		  #mode => {lvl: lvl, colors: colors }
+			#mode => {lvl: lvl, colors: colors }
 		end
 
-		def add(severity, message = nil, progname = nil, color: [], raw: @raw)
+		def add(severity, message = nil, progname = nil, color: [], raw: @raw, **args)
 			severity ||= UNKNOWN
+			severity=severity(severity)
 			color=[*color]
 			unless severity.is_a?(Numeric)
 				cli=cli_colors[severity.to_sym]
@@ -149,10 +182,10 @@ module ShellHelpers
 						color=[*cli[:colors]] + color
 					end
 				end
-				severity=severity(severity)
 			end
+			severity_lvl=severity_lvl(severity)
 
-			if @logdev.nil? or severity < @level
+			if @logdev.nil? or severity_lvl < @level
 				return true
 			end
 			if progname.nil?
@@ -167,7 +200,7 @@ module ShellHelpers
 				end
 			end
 			message = SimpleColor.color(message.to_s, *color)
-			super(severity, message, progname)
+			super(severity_lvl, message, progname)
 		end
 
 		attr_accessor :raw
@@ -244,9 +277,9 @@ module ShellHelpers
 		proxy_method :'datetime_format='
 
 		def add(severity, message = nil, progname = nil, **opts, &block) #:nodoc:
-			severity = severity(severity)
+			severity_lvl = severity_lvl(severity)
 			if @split_logs
-				unless severity >= @stderr_logger.level
+				unless severity_lvl >= @stderr_logger.level
 					super(severity,message,progname, **opts, &block)
 				end
 			else
@@ -296,7 +329,7 @@ module ShellHelpers
 			end
 		end
 
-		def cli_level(level, default: Logger::INFO)
+		def cli_level(*args)
 			super
 			if (self.level > @stderr_logger.default) && @split_logs
 				@stderr_logger.level = self.level
