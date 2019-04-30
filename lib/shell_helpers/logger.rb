@@ -56,7 +56,7 @@ module ShellHelpers
 
 		attr_accessor :default, :active, :quiet
 
-		def initialize(*args, levels: {}, cli: {}, default: Levels::INFO, active: Levels::VERBOSE, quiet: Levels::QUIET, **kwds)
+		def initialize(*args, levels: {}, default: Levels::INFO, active: Levels::VERBOSE, quiet: Levels::QUIET, **kwds)
 			@default=default
 			@active=active
 			@quiet=quiet

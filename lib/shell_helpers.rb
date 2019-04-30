@@ -23,40 +23,75 @@ module ShellHelpers
 	include Export #export
 	include Utils #find, run_pager, rsync...
 	include SysUtils #mount, find_devices...
-	extend self
-	#activates debug mode
-	def self.debug(level=true)
-		#activates logging on Pathname
-		Pathname.send(:include, CLILogging)
-		logger.cli_level(level, active: Logger::DEBUG)
+
+	module LogHelpers
+		#activates debug mode
+		def debug(level=true)
+			#activates logging on Pathname
+			Pathname.send(:include, CLILogging)
+			logger.cli_level(level, active: Logger::DEBUG)
+		end
+
+		def log(*args)
+			logger.add(*args)
+		end
+
+		# add standard log options to an OptParse instance
+		def log_options(opt, recipient)
+			opt.on("--[no-]color", "Colorize output", "Default to #{recipient[:color]}") do |v|
+				recipient[:color]=v
+			end
+
+			opt.on("--debug", "=[level]", "Activate debug informations", "Use `--debug=pry` to launch the pry debugger", "Default to #{recipient[:debug]}") do |v|
+				recipient[:debug]=v
+			end
+
+			opt.on("--log", "=[level]", "Set log level", "Default to #{recipient[:loglevel]}.") do |v|
+				recipient[:loglevel]=v
+			end
+
+			opt.on("--[no-]verbose", "-v", "Verbose mode", "Similar to --log=verbose") do |v|
+				recipient[:loglevel]=:verbose if v
+			end
+
+			opt.on("--vv", "Verbose mode 2", "Similar to --log=verbose2") do |v|
+				recipient[:loglevel]=:verbose1 if v
+			end
+
+			opt.on("--vvv", "Verbose mode 3", "Similar to --log=verbose3") do |v|
+				recipient[:loglevel]=:verbose1 if v
+			end
+
+			opt.on("--[no-]quiet", "-q", "Quiet mode", "Similar to --log=quiet") do |v|
+				recipient[:loglevel]=:quiet if v
+			end
+		end
+
+		def process_log_options(recipient)
+			SimpleColor.enabled=recipient[:color] if recipient.key?(:color)
+			SH.logger.cli_level(recipient[:loglevel]) if recipient.key?(:loglevel)
+			if recipient.key?(:debug)
+				debug=recipient[:debug]
+				if debug=="pry"
+					puts "# Launching pry"
+					require 'pry'; binding.pry
+				elsif
+					SH.debug(debug)
+				end
+			end
+		end
 	end
+	include LogHelpers
+
+	extend self
+
 	#include SH::FU to add FileUtils
 	module FU
 		include ::FileUtils
 		include ::ShellHelpers
 		extend self
 	end
-	def log(*args)
-		logger.add(*args)
-	end
-
-	# #include LogHelper to set up CLILogging with some convenience facilities
-	# module LogHelper
-	# 	include CLILogging
-	# 	CLILogging.logger.progname||=$0
-	# 	# #Activates Sh.sh in klass
-	# 	# def self.included(klass)
-	# 	# 	klass.const_set(:Sh,ShellHelpers::Sh)
-	# 	# end
-	# end
 end
 
 #for the lazy
 SH=ShellHelpers
-
-## # SHLog.sh to get logging
-## module SHLog
-## 	include ShellHelpers
-## 	include ShellHelpers::ShLog
-## end
-
