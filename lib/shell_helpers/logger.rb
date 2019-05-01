@@ -288,7 +288,7 @@ module ShellHelpers
 					super(severity,message, **opts, &block)
 				end
 			else
-				super(severity,message,progname,**opts, &block)
+				super(severity,message,**opts, &block)
 			end
 			@stderr_logger.add(severity,message,**opts, &block)
 		end
