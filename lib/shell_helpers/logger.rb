@@ -38,38 +38,41 @@ module ShellHelpers
 			[sev_name, sev_short]
 		end
 
-		attr_writer :cli_colors, :format
-		def cli_colors
-			@cli_colors ||= {}
-		end
+		attr_accessor :cli_colors
 
 		BLANK_FORMAT = "%{msg}\n"
 		# "%s, [%s#%d] %5s -- %s: %s\n"
 		DEFAULT_FORMAT = "%{severity_short}, [%{date}#%<pid>d] %<severity>s9 -- %{progname}: %{msg}\n"
+		attr_writer :format
 		def format
 			@format ||= DEFAULT_FORMAT
 		end
 
-		private def get_colors(severity, color: [], raw: false, **_kwds)
-			color=[*color]
-			unless severity.is_a?(Numeric)
-				if !raw
-					base_colors=*cli_colors[severity.to_sym]
-					color=base_colors + color
-				end
+		private def get_colors(severity, colors: [], **_kwds)
+			if cli_colors.nil? #no colors at all
+				return []
 			end
-			color
+			colors=[*colors]
+			unless severity.is_a?(Numeric)
+				colors=[*cli_colors[severity.to_sym]]+colors
+			end
+			colors
+		end
+
+		def format_msg(msg_infos, colors: [])
+			msg_infos[:msg]=SimpleColor(msg_infos[:msg], colors)
+			format % msg_infos
 		end
 
 		def call(severity, time, progname, msg, **kwds)
 			colors=get_colors(severity, **kwds)
 			severity_short, severity_name=format_severity(severity)
-			format % {severity_short: severity_short,
+			format_msg( {severity_short: severity_short,
 				date: format_datetime(time),
 				pid: $$,
 				severity: severity_name,
 				progname: progname,
-				msg: SimpleColor[msg2str(msg), *colors]}
+				msg: SimpleColor[msg2str(msg), *colors]}, colors: colors)
 		end
 	end
 
