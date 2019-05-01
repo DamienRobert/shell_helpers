@@ -48,11 +48,11 @@ module ShellHelpers
 			@format ||= DEFAULT_FORMAT
 		end
 
-		private def get_colors(severity, colors: [], **_kwds)
+		private def get_colors(severity, color: [], **_kwds)
 			if cli_colors.nil? #no colors at all
 				return []
 			end
-			colors=[*colors]
+			colors=[*color]
 			unless severity.is_a?(Numeric)
 				colors=[*cli_colors[severity.to_sym]]+colors
 			end
@@ -60,7 +60,7 @@ module ShellHelpers
 		end
 
 		def format_msg(msg_infos, colors: [])
-			msg_infos[:msg]=SimpleColor(msg_infos[:msg], colors)
+			msg_infos[:msg]=SimpleColor[msg_infos[:msg], *colors]
 			format % msg_infos
 		end
 
@@ -72,7 +72,7 @@ module ShellHelpers
 				pid: $$,
 				severity: severity_name,
 				progname: progname,
-				msg: SimpleColor[msg2str(msg), *colors]}, colors: colors)
+				msg: msg2str(msg)}, colors: colors)
 		end
 	end
 
@@ -171,7 +171,7 @@ module ShellHelpers
 
 		def datetime_format=(datetime_format)
 			@default_formatter.datetime_format = datetime_format if @default_formatter.respond_to?(:datetime_format)
-			@formatter.datetime_format = datetime_format if @formatter.respond_to?(:datetime_format)
+			@formatter.datetime_format = datetime_format if defined? @formatter and @formatter.respond_to?(:datetime_format)
 		end
 
 		def datetime_format
@@ -192,6 +192,7 @@ module ShellHelpers
 			else
 				formatter=ColorFormatter.create(form)
 				formatter.datetime_format = @default_formatter.datetime_format if formatter.respond_to?(:datetime_format) and @default_formatter.respond_to?(:datetime_format)
+				formatter
 			end
 		end
 
@@ -200,7 +201,7 @@ module ShellHelpers
 		end
 
 		# log with given security. Also accepts 'true'
-		def add(severity, message = nil, progname: @progname, callback: nil, formatter: nil, **opts)
+		def add(severity, message = nil, progname: @progname, callback: nil, format: nil, **opts)
 			severity=severity(severity, **opts)
 			severity_lvl=severity_lvl(severity)
 			if @logdev.nil? or severity_lvl < @level
@@ -211,7 +212,7 @@ module ShellHelpers
 			end
 			callback.call(message, progname, severity) if callback
 			@logdev.write(
-				format_message(severity, Time.now, progname, message, formatter: formatter, caller: self, **opts))
+				format_message(severity, Time.now, progname, message, formatter: format, caller: self, **opts))
 			true
 		end
 

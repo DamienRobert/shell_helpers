@@ -4,8 +4,7 @@ require 'shell_helpers'
 describe ShellHelpers::ColorLogger do
 	before do
 		@buffer=StringIO.new
-		@logger=SH::ColorLogger.new(@buffer)
-		@logger.formatter=SH::CLILogger::BLANK_FORMAT
+		@logger=SH::ColorLogger.new(@buffer, default_formatter: :color)
 	end
 	it "Has a info mode" do
 		@logger.info "foo"
@@ -24,11 +23,11 @@ describe ShellHelpers::ColorLogger do
 		@buffer.string.must_equal "\e[34;1;31mfoo\e[0m\n"
 	end
 	it "Has a raw important mode" do
-		@logger.important "foo", raw: true
+		@logger.important "foo", format: :blank
 		@buffer.string.must_equal "foo\n"
 	end
 	it "Can give a numeric level" do
-		@logger.add(@logger.severity(:important), "foo")
+		@logger.add(@logger.severity_lvl(:important), "foo")
 		@buffer.string.must_equal "foo\n"
 	end
 	it "Default to info level" do
