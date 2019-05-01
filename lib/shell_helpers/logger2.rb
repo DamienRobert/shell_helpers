@@ -4,59 +4,78 @@ require 'logger'
 require 'simplecolor'
 
 module ShellHelpers
-	# like Logger but with more levels
-	class ColorLogger < Logger #{{{1
-		class ColorFormatter < Logger::Formatter
-			CLI_COLORS={
-				mark: [:bold],
-				success: [:green, :bold],
-				important: [:blue, :bold],
-				warn: [:yellow, :bold],
-				error: [:red, :bold],
-				fatal: [:red, :bold]
-			}
+	class ColorFormatter < Logger::Formatter #{{{1
+		CLI_COLORS={
+			mark: [:bold],
+			success: [:green, :bold],
+			important: [:blue, :bold],
+			warn: [:yellow, :bold],
+			error: [:red, :bold],
+			fatal: [:red, :bold]
+		}
 
-			BLANK_FORMAT = "%s\n"
-
-			def self.create(type)
-				return type if type.respond_to?(:call)
-				logger=self.new
-				case type
-				when :color
-					logger.cli_color=CLI_COLORS
-					logger.format=BLANK_FORMAT
-				end
-				logger
+		def self.create(type=:default)
+			return type if type.respond_to?(:call)
+			logger=self.new
+			case type
+			when :blank
+				logger.format=BLANK_FORMAT
+			when :color
+				logger.cli_colors=CLI_COLORS
+				logger.format=BLANK_FORMAT
+			when :color_info
+				logger.cli_colors=CLI_COLORS
+			when :none
+				logger.format=""
 			end
-
-			def self.format_severity(severity)
-				Logger::SEV_LABEL[severity] || 'ANY'
-			end
-
-			attr_writer :cli_colors, :format
-			def cli_colors
-				@cli_colors ||= {}
-			end
-			def format
-				@format ||= Logger::Formatter::FORMAT
-			end
-
-			def call(severity, time, progname, msg, color: [], raw: false, **kwds)
-				color=[*color]
-				unless severity.is_a?(Numeric)
-					cli=cli_colors[severity.to_sym]
-					if cli and !raw
-							color=[*cli[:colors]] + color
-						end
-					end
-				end
-				severity_name=self.class.format_severity(severity)
-				format % [severity_name[0..0], format_datetime(time), $$, severity_name,
-							progname, SimpleColor[msg2str(msg), *color]]
-			end
+			logger
 		end
 
-		WrongLevel=Class.new(StandardError)
+		def format_severity(severity)
+			sev_name = Logger::SEV_LABEL[severity] || 'ANY'
+			sev_short=sev_name[0..0]
+			[sev_name, sev_short]
+		end
+
+		attr_writer :cli_colors, :format
+		def cli_colors
+			@cli_colors ||= {}
+		end
+
+		BLANK_FORMAT = "%{msg}\n"
+		# "%s, [%s#%d] %5s -- %s: %s\n"
+		DEFAULT_FORMAT = "%{severity_short}, [%{date}#%<pid>d] %<severity>s9 -- %{progname}: %{msg}\n"
+		def format
+			@format ||= DEFAULT_FORMAT
+		end
+
+		private def get_colors(severity, color: [], raw: false, **_kwds)
+			color=[*color]
+			unless severity.is_a?(Numeric)
+				cli=cli_colors[severity.to_sym]
+				if cli and !raw
+						color=[*cli[:colors]] + color
+				end
+			end
+			color
+		end
+
+		def call(severity, time, progname, msg, **kwds)
+			colors=get_colors(severity, **kwds)
+			severity_short, severity_name=format_severity(severity)
+			format % {severity_short: severity_short,
+				date: format_datetime(time),
+				pid: $$,
+				severity: severity_name,
+				progname: progname,
+				msg: SimpleColor[msg2str(msg), *colors]}
+		end
+	end
+
+	# like Logger but with more levels
+	class ColorLogger < ::Logger #{{{1
+		ColorLoggerError=Class.new(StandardError)
+		WrongLevel=Class.new(ColorLoggerError)
 		module Levels
 			#note Logger::Severity is included into Logger, so we can access the severity levels directly
 			DEBUG1=0 #=DEBUG
@@ -103,10 +122,10 @@ module ShellHelpers
 			@levels
 		end
 
-		def severity(severity, default: @default, quiet: @quiet)
+		def severity(severity, default_lvl: @default_lvl, quiet_lvl: @quiet_lvl, **_opts)
 			severity ||= :unknown
-			severity=default if severity == true
-			severity=quiet if severity == false
+			severity=default_lvl if severity == true
+			severity=quiet_lvl if severity == false
 			severity
 		end
 
@@ -124,26 +143,26 @@ module ShellHelpers
 			end
 		end
 
-		attr_accessor :default, :active, :quiet, :options
+		attr_accessor :default_lvl, :verbose_lvl, :quiet_lvl, :default_formatter
 
-		def initialize(*args, levels: {}, default: :info, active: :verbose, quiet: :warn, default_formatter: :color, options: {}, **kwds)
-			@default=default
-			@active=active
-			@quiet=quiet
-			@options={}
+		def initialize(*args, levels: {}, default_lvl: :info, verbose_lvl: :verbose, quiet_lvl: :unknown, default_formatter: :color, **kwds)
+			@default_lvl=default_lvl
+			@verbose_lvl=verbose_lvl
+			@quiet_lvl=quiet_lvl
 			super(*args, **kwds)
 			@default_formatter = ColorFormatter.create(default_formatter)
-			@level=severity_lvl(@default)
+			@level=severity_lvl(@default_lvl)
 			klass=self.singleton_class
 			levels=log_levels.merge!(levels)
 			levels.keys.each do |lvl|
-				klass.define_method(lvl.to_sym) do |progname=nil, **opts, &block|
-					add(lvl.to_sym, nil, progname, **opts, &block)
+				klass.define_method(lvl.to_sym) do |msg, **opts, &block|
+					add(lvl.to_sym, msg, **opts, &block)
 				end
 				klass.define_method("#{lvl}?".to_sym) do
 					@level <= severity_lvl(lvl)
 				end
 			end
+			yield self, @default_formatter if block_given?
 		end
 
 		def datetime_format=(datetime_format)
@@ -173,22 +192,14 @@ module ShellHelpers
 		end
 
 		# log with given security. Also accepts 'true'
-		def add(severity, message = nil, progname = nil, default: @default, quiet: @quiet, callback: nil, formatter: nil, **opts)
-			severity=severity(severity, default: default, quiet: quiet)
+		def add(severity, message = nil, progname: @progname, callback: nil, formatter: nil, **opts)
+			severity=severity(severity, **opts)
 			severity_lvl=severity_lvl(severity)
 			if @logdev.nil? or severity_lvl < @level
 				return true
 			end
-			if progname.nil?
-				progname = @progname
-			end
 			if message.nil?
-				if block_given?
-					message = yield
-				else
-					message = progname
-					progname = @progname
-				end
+				message = yield if block_given?
 			end
 			callback.call(message, progname, severity) if callback
 			@logdev.write(
@@ -201,9 +212,9 @@ module ShellHelpers
 		end
 
 		# like level= but for clis, so we can pass a default if level=true
-		def cli_level(level, active: @active, quiet: @quiet)
+		def cli_level(level, active: @verbose_lvl, disactive: @quiet_lvl)
 			level=active if level==true #for cli
-			level=quiet if level==false #for cli
+			level=disactive if level==false #for cli
 			self.level=level
 		end
 	end
@@ -246,10 +257,6 @@ module ShellHelpers
 	#			logger.debug("Starting up") #=> logfile.txt gets this
 	#			logger.error("Something went wrong!") # => BOTH logfile.txt AND the standard error get this
 	class CLILogger < ColorLogger
-		BLANK_FORMAT = lambda { |severity,datetime,progname,msg|
-			msg + "\n"
-		}
-
 		# Helper to proxy methods to the super class AND to the internal error logger
 		# +symbol+:: Symbol for name of the method to proxy
 		def self.proxy_method(symbol) #:nodoc:
@@ -292,8 +299,8 @@ module ShellHelpers
 		# By default, this is Logger::Severity::WARN
 		# +error_device+:: device where all error messages should go.
 		def initialize(log_device=$stdout,error_device=$stderr,
-									 split_log: :auto, default_error: DEFAULT_ERROR_LEVEL, **kwds)
-			@stderr_logger = MoreLogger.new(error_device, default: default_error, **kwds)
+				 split_log: :auto, default_error_lvl: DEFAULT_ERROR_LEVEL, **kwds)
+			@stderr_logger = ColorLogger.new(error_device, default_lvl: default_error_lvl, **kwds)
 
 			super(log_device, **kwds)
 
@@ -302,27 +309,32 @@ module ShellHelpers
 
 			@split_logs = log_device_tty && error_device_tty if split_log==:auto
 
-			self.level = Logger::Severity::INFO
-			@stderr_logger.level = @stderr_logger.default
+			self.default_formatter = ColorFormatter.create(:color) if log_device_tty
+			@stderr_logger.default_formatter = ColorFormatter.create(:color) if error_device_tty
 
-			self.formatter = BLANK_FORMAT if log_device_tty
-			@stderr_logger.formatter = BLANK_FORMAT if error_device_tty
 			yield self, @stderr_logger if block_given?
+		end
+
+		private def adjust_stderr_level
+			#current_error_level = @stderr_logger.level
+			if @split_logs
+				if (self.level > @stderr_logger.level)
+					@stderr_logger.level = self.level
+				end
+				if (self.level < @stderr_logger.level)
+					@stderr_logger.level = [self.level, @stderr.severity_lvl(@stderr.default_lvl)].min
+				end
+			end
 		end
 
 		def level=(level)
 			super
-			#current_error_level = @stderr_logger.level
-			if (self.level > @stderr_logger.default) && @split_logs
-				@stderr_logger.level = self.level
-			end
+			adjust_stderr_level
 		end
 
 		def cli_level(*args)
 			super
-			if (self.level > @stderr_logger.default) && @split_logs
-				@stderr_logger.level = self.level
-			end
+			adjust_stderr_level
 		end
 
 		# Set the threshold for what messages go to the error device.  Note
@@ -457,11 +469,11 @@ module ShellHelpers
 		#Include this in place of CLILogging if you prefer to use
 		#info directly rather than logger.info
 		module Shortcuts #{{{
-			extend self
 			include CLILogging
-			LOG_LEVELS.each do |lvl, _cst|
-				define_method(lvl.to_sym) do |progname=nil, &block|
-					logger.send(lvl.to_sym, progname, &block)
+			extend self
+			logger.log_levels.each_key do |lvl|
+				define_method(lvl.to_sym) do |*args, &block|
+					logger.send(lvl.to_sym, *args, &block)
 				end
 			end
 		end
