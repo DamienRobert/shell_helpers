@@ -290,6 +290,7 @@ module ShellHelpers
 			else
 				super(severity,message,**opts, &block)
 			end
+			severity = severity_lvl if severity == true
 			@stderr_logger.add(severity,message,**opts, &block)
 		end
 
