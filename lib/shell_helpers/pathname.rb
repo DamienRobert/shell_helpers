@@ -270,11 +270,15 @@ module ShellHelpers
 				Utils.find(self,*args,&b)
 			end
 
-			def glob(pattern, expand: false)
+			# We now have Pathname#glob
+			def old_glob(pattern, expand: false)
 				g=[]
 				self.cd { g=Dir.glob(pattern) }
-				g=g.map {|f| self+f} if expand
-				g
+				if expand
+					g.map {|f| self+f} 
+				else
+					g.map {|f| Pathname.new(f)}
+				end
 			end
 
 			#follow a symlink
