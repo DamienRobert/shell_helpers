@@ -271,7 +271,7 @@ module ShellHelpers
 			end
 
 			# We now have Pathname#glob
-			def old_glob(pattern, expand: false)
+			def rel_glob(pattern, expand: false)
 				g=[]
 				self.cd { g=Dir.glob(pattern) }
 				if expand
