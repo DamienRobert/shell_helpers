@@ -98,6 +98,14 @@ module ShellHelpers
 				exist? or symlink?
 			end
 
+			#like read, but output nil rather than an exception if the file does
+			#not exist
+			def read!
+					read
+			rescue
+				nil
+			end
+
 			def filewrite(*args,mode:"w",perm: nil,mkpath: false,backup: false)
 				logger.debug("Write to #{self}"+ (perm ? " (#{perm})" : "")) if respond_to?(:logger)
 				self.dirname.mkpath if mkpath
