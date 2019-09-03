@@ -118,10 +118,10 @@ module ShellHelpers
 	#			 # This block isn't called, since the command failed
 	#		 end
 	#
-	#		 sh 'ls -l /tmp/' do |stdout|
+	#		 sh 'ls -l /tmp/', capture: true do |status, stdout|
 	#			 # stdout contains the output of the command
 	#		 end
-	#		 sh 'ls -l /tmp/ /non_existent_dir' do |stdout,stderr|
+	#		 sh 'ls -l /tmp/ /non_existent_dir', capture: true do |status, stdout,stderr|
 	#			 # stdout contains the output of the command,
 	#			 # stderr contains the standard error output.
 	#			end
