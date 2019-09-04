@@ -139,6 +139,8 @@ module ShellHelpers
 			fs
 		end
 		
+		# we default to lsblk
+		# findmnt adds the subvolumes, the fsroot and the mountoptions
 		def fs_infos(mode: :devices)
 			return findmnt if mode == :mount
 			return lsblk.merge(findmnt) if mode == :all
@@ -161,6 +163,10 @@ module ShellHelpers
 			end
 
 			if method==:blkid
+				# try with UUID, then LABEL, then PARTUUID
+				# as soon as we have a non empty label, we return the result of
+				# blkid on it.
+				#
 				# Warning, since 'blkid' can only test one label, we cannot check
 				# that all parameters are valid
 				# search from most discriminant to less discriminant
@@ -174,9 +180,9 @@ module ShellHelpers
 				if props[:parttype]
 					find_devices(props, method: :all)
 				end
-			else
+			else #method=:all
 				fs=fs_infos
-				# here we check all parameters
+				# here we check all parameters (ie all defined labels are correct)
 				# however, if none are defined, this return true, so we check that at least one is defined
 				return [] unless %i(uuid label partuuid partlabel parttype).any? {|k| props[k]}
 				return fs.keys.select do |k|
@@ -204,6 +210,7 @@ module ShellHelpers
 			return devs.first&.fetch(:devname)
 		end
 
+		# Mount devinces on paths
 		def mount(paths, mkpath: true, abort_on_error: true, sort: true)
 			paths=paths.values if paths.is_a?(Hash)
 			paths=paths.select {|p| p[:mountpoint]}
@@ -244,6 +251,9 @@ module ShellHelpers
 			end
 		end
 
+		# by default give symbol => guid
+		# can also give symbol => hexa (mode: :hexa)
+		# or hexa/guid => symbol (mode: :symbol)
 		def partition_type(type, mode: :guid)
 			if mode==:symbol
 				%i(boot swap home x86_root x86-64_root arm64_root arm32_root linux).each do |symb|

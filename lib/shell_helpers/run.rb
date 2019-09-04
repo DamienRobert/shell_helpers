@@ -87,10 +87,14 @@ module ShellHelpers
 		def run(*args, output: :capture, error: nil, fail_mode: :error, chomp: false, sudo: false, error_mode: nil, expected: nil, on_success: nil, quiet: nil, **opts)
 			env, args, spawn_opts=Run.process_command(*args, sudo: sudo, **opts)
 
-			if args.length > 1
-				launch=args.shelljoin
+			if args.is_a?(Array)
+				if args.length > 1
+					launch=args.shelljoin
+				else
+					launch=args.first #assume it has already been escaped
+				end
 			else
-				launch=args.first #assume it has already been escaped
+				launch=args.to_s
 			end
 			launch+=" 2>/dev/null" if error==:quiet or quiet
 			launch+=" >/dev/null" if output==:quiet
@@ -119,8 +123,9 @@ module ShellHelpers
 				end
 			end
 			status=ProcessStatus.new(status, expected) if expected
-			yield status.success?, out, err, status if block_given?
-			if status.success?
+			status_success=status.success? if status.respond_to? :success?
+			yield status_success, out, err, status if block_given?
+			if status_success
 				# this block is called in case of success
 				on_success.call(status, out, err) if on_success.is_a?(Proc)
 			else # the command failed

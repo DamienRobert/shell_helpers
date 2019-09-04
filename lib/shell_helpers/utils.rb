@@ -248,7 +248,7 @@ module ShellHelpers
 			ssh_options: [], ssh_Ooptions: [],
 			port: nil, forward: nil, x11: nil, user: nil, path: nil, parse: true,
 			pty: nil, ssh_env:nil,
-			**opts)
+			**opts, &b)
 
 			#sshkit has a special setting for :local
 			host=host.to_s unless mode==:sshkit and host.is_a?(Symbol)
@@ -282,7 +282,7 @@ module ShellHelpers
 			when :net_ssh
 				require 'net/ssh'
 				user=nil;
-				Net::SSH.start(host, user, ssh_options)
+				Net::SSH.start(host, user, ssh_options, &b)
 			when :sshkit
 				require 'sshkit'
 				host=SSHKit::Host.new(host)
@@ -300,6 +300,7 @@ module ShellHelpers
 				  ssh_command_options: ([ssh_command]+ssh_options).shelljoin,
 				  user: user,
 				  host: host,
+				  path: path,
 				  hostssh: user ? "#{user}@#{host}" : host,
 				  command: commands }
 			end
