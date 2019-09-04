@@ -10,6 +10,8 @@ module ShellHelpers
 		SysError=Class.new(StandardError)
 
 		# wrap 'stat'
+		# @example
+		# SH.stat_file("mine") => {:access=>"700", :blocknumber=>0,...}
 		def stat_file(file)
 			require 'time'
 			opts=%w(a b B f F g G h i m n N o s u U w x y z)
@@ -37,9 +39,14 @@ module ShellHelpers
 			r[:statustime] = begin Time.parse(stats[19]) rescue nil end
 			r
 		end
+
 		# wrap stat --file-system
+		# @example
+		# SH.stat_filesystem("mine") => {:userfreeblocks=>..., fstype=>"btrfs"}
 		def stat_filesystem(file, up: true)
-			if up
+			if up #output the fs info of the first ascending path that exist
+				# usefull to get infos of the filesystem of a file we want to create
+				# but does not yet exist
 				file=Pathname.new(file)
 				file.ascend.each do |f|
 					return stat_filesystem(f, up: false) if f.exist?
@@ -93,6 +100,8 @@ module ShellHelpers
 		#   :type=>"swap",
 		#   :partlabel=>"swap",
 		#   :partuuid=>"f4eef373-0803-4701-bd47-b968c44065a6"}
+		# @exemple
+		# SH.blkid => {"/dev/sda1"=> {:devname=>"/dev/sda1", :sec_type=>"msdos", :label_fatboot=>"boot", :label=>"boot", :uuid=>"D906-BEB0", :partlabel=>"boot", :partuuid=>"...",:fstype=>"vfat"}, ...}
 		def blkid(*args, sudo: false)
 			# get devname, (part)label/uuid, fstype
 			fsoptions=Run.run_simple("blkid -o export #{args.shelljoin}", fail_mode: :empty, chomp: true, sudo: sudo)
@@ -100,6 +109,8 @@ module ShellHelpers
 		end
 
 		# use lsblk to get infos about devices
+		# @exemple
+		# SH.lsblk => {"/dev/sda"=>{:devname=>"/dev/sda", :devtype=>"disk"}, "/dev/sda1"=> {:devname=>"/dev/sda1", :label=>"boot", :uuid=>"D906-BEB0", :partlabel=>"boot", :partuuid=>"00000000-0000-0000-0000-000000000000", :parttype=>"c12a7328-f81f-11d2-ba4b-00a0c93ec93b", :devtype=>"part", :fstype=>"vfat"},...}
 		def lsblk(sudo: false)
 			# get devname, mountpoint, (part)label/uuid, (part/dev/fs)type
 			fsoptions=Run.run_simple("lsblk -l -J -o NAME,MOUNTPOINT,LABEL,UUID,PARTLABEL,PARTUUID,PARTTYPE,TYPE,FSTYPE", fail_mode: :empty, chomp: true, sudo: sudo)
@@ -123,6 +134,8 @@ module ShellHelpers
 		end
 
 		# use findmnt to get infos about mount points
+		# @exemple
+		# SH.findmnt => {"/dev/bcache0[/slash]"=> {:mountpoint=>"/", :devname=>"/dev/bcache0[/slash]", :fstype=>"btrfs", :mountoptions=> ["rw", "noatime", "compress=lzo", "ssd", "space_cache", "autodefrag", "subvolid=257", "subvol=/slash"], :label=>"rootleaf", :uuid=>"1db5b600-df3e-4d1e-9eef-6a0a7fda491d", :partlabel=>"", :partuuid=>"", :fsroot=>"/slash"}, ...}
 		def findmnt(sudo: false)
 			# get devname, mountpoint, mountoptions, (part)label/uuid, fsroot
 			# only looks at mounted devices (but in comparison to lsblk also show
@@ -153,6 +166,9 @@ module ShellHelpers
 		end
 
 		# find devices matching props
+		# @exemple
+		# SH.find_devices({label: "boot"})
+		# => [{:devname=>"/dev/sda1", :label=>"boot", :uuid=>"D906-BEB0", :partlabel=>"boot", :partuuid=>"...", :parttype=>"c12a7328-f81f-11d2-ba4b-00a0c93ec93b", :devtype=>"part", :fstype=>"vfat"}]
 		def find_devices(props, method: :all)
 			props=props.clone
 			return [{devname: props[:devname]}] unless props[:devname].nil?
@@ -187,14 +203,20 @@ module ShellHelpers
 				return [] unless %i(uuid label partuuid partlabel parttype).any? {|k| props[k]}
 				return fs.keys.select do |k|
 					fsprops=fs[k]
-					# the fsinfos should have one of this parameters defined
-					next false unless %i(uuid label partuuid partlabel parttype).any? {|k| fsprops[k]}
 					next false if (disk=props[:disk]) && !fsprops[:devname].start_with?(disk.to_s)
-					%i(uuid label partuuid partlabel parttype).all? do |key|
+					# all defined labels should match
+					next false unless %i(uuid label partuuid partlabel parttype).all? do |key|
 						ptype=props[key]
 						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
 						!ptype or !fsprops[key] or ptype==fsprops[key]
 					end
+					# their should at least be one matching label
+					next false unless %i(uuid label partuuid partlabel parttype).select do |key|
+						ptype=props[key]
+						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
+						ptype and fsprops[key] and ptype==fsprops[key]
+					end.length > 0
+					true
 				end.map {|k| fs[k]}
 			end
 			return []
@@ -210,7 +232,19 @@ module ShellHelpers
 			return devs.first&.fetch(:devname)
 		end
 
-		# Mount devinces on paths
+		# Mount devices on paths
+		# @argument
+		# - paths: Array (or Hash) of path
+		# => path: {mountpoint: "/mnt", mountoptions: [], fstype: "ext4",
+		# subvol: ..., device_info}
+		# where device_info is used to find the device via find_device
+		# so can be set via :devname, or uuid label partuuid partlabel parttype
+		# @opts
+		# - sort: sort the mountpoints
+		# - abort_on_error: fail if a mount failt
+		# - mkpath: mkpath the mountpoints
+		# @return
+		# the paths and a lambda to unmount
 		def mount(paths, mkpath: true, abort_on_error: true, sort: true)
 			paths=paths.values if paths.is_a?(Hash)
 			paths=paths.select {|p| p[:mountpoint]}
@@ -282,6 +316,8 @@ module ShellHelpers
 			end
 		end
 
+		# @exemple
+		# SH.partition_infos("/dev/sda", sudo: true) => [{:partlabel=>"boot", :partattributes=>"0000000000000004", :partuuid=>"00000000-0000-0000-0000-000000000000", :parttype=>"c12a7328-f81f-11d2-ba4b-00a0c93ec93b"}, {:partlabel=>"swap", :partattributes=>"0000000000000000", :partuuid=>"f4eef373-0803-4701-bd47-b968c44065a6", :parttype=>"0fc63daf-8483-4772-8e79-3d69d8477de4"}, {:partlabel=>"slash", :partattributes=>"0000000000000000", :partuuid=>"31b4cd66-39ab-4c5b-a229-d5d2010d53dd", :parttype=>"0fc63daf-8483-4772-8e79-3d69d8477de4"}]
 		def partition_infos(device, sudo: false)
 			parts = Run.run_simple("partx -o NR --show #{device.shellescape}", sudo: sudo) { return nil }
 			infos=[]
@@ -305,7 +341,16 @@ module ShellHelpers
 			infos
 		end
 
-		#options: check => check that no partitions exist first
+		#@argument
+		#  A list of partitions
+		#  Note that here the device has to be specified with :disk; looking at
+		#  PARTLABEL or things like that don't make sense if the partitions
+		#  don't exist
+		#@options:
+		# - check => check that no partitions exist first
+		# - partprobe: run partprobe if we made partitions
+		# @exemple
+		# SH.make_partitions( {:boot=> {:parttype=>:boot, :partlength=>"+100M", :fstype=>"vfat", :rel_mountpoint=>"boot", :mountoptions=>["fmask=133"]}, :slash=> {:parttype=>:"x86-64_root", :fstype=>"ext4", :rel_mountpoint=>"."}, ...})
 		def make_partitions(partitions, check: true, partprobe: true)
 			partitions=partitions.values if partitions.is_a?(Hash)
 			done=[]
@@ -361,6 +406,9 @@ module ShellHelpers
 			Sh.sh("wipefs -a #{disk.shellescape}", sudo: true)
 		end
 
+		# make filesystems
+		# takes a list of fs infos (where the device is specified like before,
+		# via devname, label, ...)
 		def make_fs(fs, check: true)
 			fs=fs.values if fs.is_a?(Hash)
 			fs.each do |partfs|
@@ -388,6 +436,7 @@ module ShellHelpers
 			end
 		end
 
+		# use fallocate to make a raw image
 		def make_raw_image(name, size="1G")
 			raw=Pathname.new(name)
 			raw.touch
@@ -397,6 +446,7 @@ module ShellHelpers
 			raw
 		end
 
+		# makes a btrfs subvolume
 		def make_btrfs_subvolume(dir, check: true)
 			if check and dir.directory?
 				raise SysError("Subvolume already exists at #{dir}") if check==:raise
@@ -406,6 +456,8 @@ module ShellHelpers
 				dir
 			end
 		end
+
+		# try to make a subvolume, else fallsback to a dir
 		def make_dir_or_subvolume(dir)
 			dir=Pathname.new(dir)
 			return :directory if dir.directory?
@@ -419,6 +471,7 @@ module ShellHelpers
 			end
 		end
 
+		# runs losetup, and returns the created disk, and a lambda to close
 		def losetup(img)
 			disk = Run.run_simple("losetup -f --show #{img.shellescape}", sudo: true, chomp: true, error_mode: :nil)
 			close=lambda do
