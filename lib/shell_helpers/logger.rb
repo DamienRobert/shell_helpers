@@ -159,7 +159,7 @@ module ShellHelpers
 			klass=self.singleton_class
 			levels=log_levels.merge!(levels)
 			levels.keys.each do |lvl|
-				klass.define_method(lvl.to_sym) do |msg, **opts, &block|
+				klass.define_method(lvl.to_sym) do |msg=nil, **opts, &block|
 					add(lvl.to_sym, msg, **opts, &block)
 				end
 				klass.define_method("#{lvl}?".to_sym) do
