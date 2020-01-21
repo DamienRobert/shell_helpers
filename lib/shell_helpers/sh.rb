@@ -436,8 +436,8 @@ ng or provide your own via #change_sh_logger." unless self.respond_to?(:logger)
 			cargs=Array(cmd_prepend) + [cmd] + dopts + Array(opts) + args + Array(cmd_postpone)
 			if !b
 				if method
-					b=lambda do |*args|
-						SH.public_send(method, *args)
+					b=lambda do |*args, **kw|
+						SH.public_send(method, *args, **kw)
 					end
 				else
 					b=lambda do |*args|

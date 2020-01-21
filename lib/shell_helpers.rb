@@ -32,8 +32,8 @@ module ShellHelpers
 			logger.cli_level(level, active: Logger::DEBUG)
 		end
 
-		def log(*args)
-			logger.add(*args)
+		def log(*args, **kw)
+			logger.add(*args, **kw)
 		end
 
 		# add standard log options to an OptParse instance

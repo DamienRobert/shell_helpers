@@ -470,8 +470,8 @@ module ShellHelpers
 			logger.setup_toggle_trap(signal)
 		end
 
-		def log_and_do(*args)
-			logger.log_and_do(*args)
+		def log_and_do(*args,**kws)
+			logger.log_and_do(*args,**kws)
 		end
 
 		LOG_LEVELS=logger.log_levels
