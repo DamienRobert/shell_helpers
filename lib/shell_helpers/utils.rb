@@ -72,10 +72,10 @@ module ShellHelpers
 						files.map! {|f| f.dup.taint}
 						if chdir
 							Dir.chdir(base) do
-								yield *files, base
+								yield(*files, base)
 							end
 						else
-							yield *files, base
+							yield(*files, base)
 						end
 					end
 				end
@@ -130,7 +130,7 @@ module ShellHelpers
 			Kernel.select [$stdin] # Wait until we have input before we start the pager
 			pager = ENV['PAGER'] || 'less'
 			run=args.unshift(pager)
-			exec *run rescue exec "/bin/sh", "-c", *run
+			exec(*run) rescue exec "/bin/sh", "-c", *run
 		end
 
 		#inside run_pager, escape from the pager

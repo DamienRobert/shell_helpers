@@ -389,7 +389,7 @@ module ShellHelpers
 			extend FUClass
 			#wrapper around FileUtils
 			#For instance Pathname#rmdir uses Dir.rmdir, but the rmdir from FileUtils is a wrapper around Dir.rmdir that accepts extra options
-			[:chdir, :rmdir, :mkdir, :cmp, :touch, :rm, :rm_r, :uptodate?, :cmp, :cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
+			[:rmdir, :mkdir, :cmp, :touch, :rm, :rm_r, :uptodate?, :cp,:cp_r,:mv,:ln,:ln_s,:ln_sf].each do |method|
 				define_method method do |*args,&b|
 					self.class.fu_class.public_send(method,self,*args,&b)
 				end
@@ -590,7 +590,7 @@ module ShellHelpers
 
 	class VirtualFile
 		extend Forwardable
-		def_delegators :@tmpfile, :open, :close, :close!, :unlink, :path
+		def_delegators :@tmpfile, :open, :close, :close!, :unlink
 		attr_accessor :content, :name, :tmpfile
 
 		def initialize(name, content)

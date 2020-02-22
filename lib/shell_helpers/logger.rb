@@ -312,12 +312,12 @@ module ShellHelpers
 				 split_log: :auto, default_error_lvl: DEFAULT_ERROR_LEVEL, **kwds)
 			@stderr_logger = ColorLogger.new(error_device, default_lvl: default_error_lvl, **kwds)
 
-			super(log_device, **kwds)
-
 			log_device_tty	 = tty?(log_device)
 			error_device_tty = tty?(error_device)
 
 			@split_logs = log_device_tty && error_device_tty if split_log==:auto
+
+			super(log_device, **kwds)
 
 			self.default_formatter = ColorFormatter.create(:color) if log_device_tty
 			@stderr_logger.default_formatter = ColorFormatter.create(:color) if error_device_tty
