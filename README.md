@@ -3,9 +3,10 @@
 * [Homepage](https://github.com/DamienRobert/shell_helpers#readme)
 * [Issues](https://github.com/DamienRobert/shell_helpers/issues)
 * [Documentation](http://rubydoc.info/gems/shell_helpers)
-* [Email](mailto:Damien.Olivier.Robert+gems at gmail.com)
+* [Email](mailto:Damien.Olivier.Robert+gems@gmail.com)
 
 [![Gem Version](https://img.shields.io/gem/v/shell_helpers.svg)](https://rubygems.org/gems/shell_helpers)
+[![Ruby test result](https://github.com/DamienRobert/shell_helpers/workflows/Ruby/badge.svg)](https://github.com/DamienRobert/shell_helpers/actions?query=workflow%3ARuby)
 [![Build Status](https://travis-ci.org/DamienRobert/shell_helpers.svg?branch=master)](https://travis-ci.org/DamienRobert/shell_helpers)
 
 ## Description
@@ -32,6 +33,7 @@
 
 ## Examples
 
+    ~~~ ruby
     require 'shell_helpers'
     SH::Pathname.new("foo").cp("bar") #calls FileUtils.cp("foo","bar")
     SH::Pathname.new("foo/").on_cp("bar","baz") #copy 'bar' and 'baz' to 'foo/'
@@ -42,6 +44,7 @@
     SH::Pathname.new("foo").squel_dir("bar',action: :on_ln_s)
     #Remove these symlinks
     SH::Pathname.new("foo").squel_dir("bar") {|o,t| o.on_rm(mode: :symlink)} 
+    ~~~
 
 ## Warning
 
@@ -55,7 +58,7 @@
 
 Copyright © 2015–2018 Damien Robert
 
-MIT License. See {file:LICENSE.txt} for details.
+MIT License. See [`LICENSE.txt`](LICENSE.txt) for details.
 
 See above for the copyright: for the files `logger.rb` and `sh.rb` the
 copyright applies only to the diff from the original import from methadone.
