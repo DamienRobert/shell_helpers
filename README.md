@@ -56,7 +56,7 @@
 
 ## Copyright
 
-Copyright © 2015–2018 Damien Robert
+Copyright © 2015–2020 Damien Robert
 
 MIT License. See [`LICENSE.txt`](LICENSE.txt) for details.
 

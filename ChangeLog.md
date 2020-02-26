@@ -1,5 +1,15 @@
-== Release v0.7.0 (2020-02-18) ==
+== Release v0.7.1 (2020-02-26) ==
 
+	* logger.rb: use class_eval
+	* Add .bundle/config
+	* Bump require gem versions
+	* Add github action for tests
+	* Fix minitest warning
+	* Fix warnings
+
+== Release v0.7.0 (2020-02-19) ==
+
+	* Bump version and update ChangeLog.md
 	* Copyright
 	* rsync: Use -zz instead of -z (--new-compress)
 	* Fixes for ruby 2.7
