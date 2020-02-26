@@ -159,11 +159,13 @@ module ShellHelpers
 			klass=self.singleton_class
 			levels=log_levels.merge!(levels)
 			levels.keys.each do |lvl|
-				klass.define_method(lvl.to_sym) do |msg=nil, **opts, &block|
-					add(lvl.to_sym, msg, **opts, &block)
-				end
-				klass.define_method("#{lvl}?".to_sym) do
-					@level <= severity_lvl(lvl)
+				klass.class_eval do
+				  define_method(lvl.to_sym) do |msg=nil, **opts, &block|
+					  add(lvl.to_sym, msg, **opts, &block)
+				  end
+				  define_method("#{lvl}?".to_sym) do
+					  @level <= severity_lvl(lvl)
+				  end
 				end
 			end
 			yield self, @default_formatter if block_given?
