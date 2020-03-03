@@ -344,7 +344,7 @@ module ShellHelpers
 			adjust_stderr_level
 		end
 
-		def cli_level(*args)
+		def cli_level(*args, **kw)
 			super
 			adjust_stderr_level
 		end
