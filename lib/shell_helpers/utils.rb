@@ -202,7 +202,7 @@ module ShellHelpers
 			path.map { |dir| Pathname.glob(dir+pattern) }.flatten
 		end
 
-		def rsync(*files, out, default_opts: "-vczz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, clobber: true, expected: 23, chown: nil, sshcommand: nil, exclude: [], **opts, &b)
+		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, clobber: true, expected: 23, chown: nil, sshcommand: nil, exclude: [], **opts, &b)
 			require 'shell_helpers/sh'
 			rsync_opts=[*opts.delete(:rsync_opts)] || []
 			rsync_opts << default_opts
