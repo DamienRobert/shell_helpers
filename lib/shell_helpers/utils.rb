@@ -69,7 +69,7 @@ module ShellHelpers
 
 				yield_files=lambda do |*files|
 					unless test_filter.(filter,*files)
-						files.map! {|f| f.dup.taint}
+						# files.map! {|f| f.dup.taint}
 						if chdir
 							Dir.chdir(base) do
 								yield(*files, base)
@@ -90,7 +90,8 @@ module ShellHelpers
 								file.children(false).sort.reverse_each do |f|
 									fj = file + f
 									f = filerel + f
-									do_find.(fj.untaint,f.untaint)
+									# do_find.(fj.untaint,f.untaint)
+									do_find.(fj,f)
 								end
 								yield_files.(*files) if depth
 							end
