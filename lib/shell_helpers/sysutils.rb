@@ -169,6 +169,7 @@ module ShellHelpers
 		# @exemple
 		# SH.find_devices({label: "boot"})
 		# => [{:devname=>"/dev/sda1", :label=>"boot", :uuid=>"D906-BEB0", :partlabel=>"boot", :partuuid=>"...", :parttype=>"c12a7328-f81f-11d2-ba4b-00a0c93ec93b", :devtype=>"part", :fstype=>"vfat"}]
+		# Name handling: in find_devices, :name is used to set up :label and :partlabel unless they exist. It is also used as a label in make_fs (unless :label exist), and as a partlabel in make_partitions
 		def find_devices(props, method: :all)
 			props=props.clone
 			return [{devname: props[:devname]}] unless props[:devname].nil?
@@ -200,18 +201,19 @@ module ShellHelpers
 				fs=fs_infos
 				# here we check all parameters (ie all defined labels are correct)
 				# however, if none are defined, this return true, so we check that at least one is defined
-				return [] unless %i(uuid label partuuid partlabel parttype).any? {|k| props[k]}
+				tokens=%i(uuid label partuuid partlabel parttype)
+				return [] unless tokens.any? {|k| props[k]}
 				return fs.keys.select do |k|
 					fsprops=fs[k]
 					next false if (disk=props[:disk]) && !fsprops[:devname].start_with?(disk.to_s)
 					# all defined labels should match
-					next false unless %i(uuid label partuuid partlabel parttype).all? do |key|
+					next false unless tokens.all? do |key|
 						ptype=props[key]
 						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
 						!ptype or !fsprops[key] or ptype==fsprops[key]
 					end
 					# their should at least be one matching label
-					next false unless %i(uuid label partuuid partlabel parttype).select do |key|
+					next false unless tokens.select do |key|
 						ptype=props[key]
 						ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
 						ptype and fsprops[key] and ptype==fsprops[key]
@@ -311,7 +313,7 @@ module ShellHelpers
 				mode == :hexa ? "8305" : "b921b045-1df0-41c3-af44-4c6f280d3fae"
 			when :arm32_root
 				mode == :hexa ? "8307" : "69dad710-2ce4-4e3c-b16c-21a1d49abed3"
-			when :linux
+			when :linux, :data
 				mode == :hexa ? "8300" : "0fc63daf-8483-4772-8e79-3d69d8477de4"
 			end
 		end
@@ -339,6 +341,10 @@ module ShellHelpers
 				end
 			end
 			infos
+		end
+
+		def partition_options
+      %i(partnum partstart partlength partlabel partattributes parttype)
 		end
 
 		#@argument
@@ -370,7 +376,7 @@ module ShellHelpers
 				end
 				opts=[]
 				dpartitions.each do |partition|
-					next unless %i(partnum partstart partlength partlabel partattributes parttype).any? {|k| partition.key?(k)}
+					next unless partition_options.any? {|k| partition.key?(k)}
 					num=partition[:partnum]&.to_i || 0
 					start=partition[:partstart] || 0
 					length=partition[:partlength] || 0
@@ -397,13 +403,16 @@ module ShellHelpers
 			done
 		end
 
-		def zap_partitions(disk)
-			# Zap (destroy) the GPT and MBR data  structures  and  then  exit.
-			Sh.sh("sgdisk --zap-all #{disk.shellescape}", sudo: true)
+		def zap_partitions(disk, all: true)
+		  zap= all ? "--zap-all" : "--zap"
+			# --zap-all: Zap (destroy) the GPT and MBR data  structures  and  then  exit.
+			# --zap: only destroy GPT structure
+			Sh.sh("sgdisk #{zap} #{disk.shellescape}", sudo: true)
 		end
-		def wipefs(disk)
+		def wipefs(disk, all: true, opts: [])
+		  opts << "-a" if all
 			# wipe all signatures
-			Sh.sh("wipefs -a #{disk.shellescape}", sudo: true)
+			Sh.sh("wipefs #{opts.shelljoin} #{disk.shellescape}", sudo: true)
 		end
 
 		# make filesystems
@@ -420,7 +429,7 @@ module ShellHelpers
 					label=partfs[:label]||partfs[:name]
 					if label
 						labelkey="-L"
-						labelkey="-n" if fstype.to_s=="vfat"
+						labelkey="-n" if ["vfat", "exfat"].include?(fstype.to_s)
 						opts+=[labelkey, label]
 					end
 					if check
