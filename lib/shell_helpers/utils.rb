@@ -203,7 +203,7 @@ module ShellHelpers
 			path.map { |dir| Pathname.glob(dir+pattern) }.flatten
 		end
 
-		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, clobber: true, expected: 23, chown: nil, sshcommand: nil, exclude: [], **opts, &b)
+		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, clobber: true, expected: 23, chown: nil, sshcommand: nil, exclude: [], **rsync_sh_opts, &b)
 			require 'shell_helpers/sh'
 			rsync_opts=[*opts.delete(:rsync_opts)] || []
 			rsync_opts << default_opts
@@ -228,8 +228,8 @@ module ShellHelpers
 				out.rmtree
 				out.mkpath
 			end
-			opts[:log]||=true
-			opts[:log_level_execute]||=:info
+			rsync_sh_opts[:log]||=true
+			rsync_sh_opts[:log_level_execute]||=:info
 			if backup
 				rsync_opts << "--backup"
 				rsync_opts << (backup.to_s[-1]=="/" ? "--backup-dir=#{backup}" : "--suffix=#{backup}") unless backup==true
@@ -238,9 +238,9 @@ module ShellHelpers
 				rsync_opts << "-e"
 				rsync_opts << sshcommand.shellescape
 			end
-			rsync_opts+=opts.delete(:rsync_late_opts)||[]
+			rsync_opts+=rsync_sh_opts.delete(:rsync_late_opts)||[]
 			cmd=["rsync"]+rsync_opts+files.map(&:to_s)+[out.to_s]
-			Sh.sh(*cmd, expected: expected, **opts, &b)
+			Sh.sh(*cmd, expected: expected, **rsync_sh_opts, &b)
 			#expected: rsync error code 23 is some files/attrs were not transferred
 		end
 
@@ -250,7 +250,7 @@ module ShellHelpers
 			ssh_options: [], ssh_Ooptions: [],
 			port: nil, forward: nil, x11: nil, user: nil, path: nil, parse: true,
 			pty: nil, ssh_env:nil,
-			**opts, &b)
+			**ssh_sh_opts, &b)
 
 			#sshkit has a special setting for :local
 			host=host.to_s unless mode==:sshkit and host.is_a?(Symbol)
@@ -280,7 +280,7 @@ module ShellHelpers
 			when :system,:spawn,:capture,:exec
 				host="#{user}@#{host}" if user
 				env_commands= ssh_env ? [Export.export_variables(ssh_env, inline: true)]+commands : commands
-				Sh.sh(* [ssh_command]+ssh_options+[host]+env_commands, mode: mode, **opts)
+				Sh.sh(* [ssh_command]+ssh_options+[host]+env_commands, mode: mode, **ssh_sh_opts)
 			when :net_ssh
 				require 'net/ssh'
 				user=nil;
@@ -296,15 +296,18 @@ module ShellHelpers
 			when :uri
 				URI::Ssh::Generic.build(scheme: 'ssh', userinfo: user, host: host, path: path, port: port) #, query: ssh_options.join('&'))
 			else
+			  hostssh=user ? "#{user}@#{host}" : host
+			  fullpath= path ? "#{hostssh}:#{path}" : hostssh
 				# return options
-				{ ssh_command: ssh_command,
-				  ssh_options: ssh_options,
-				  ssh_command_options: ([ssh_command]+ssh_options).shelljoin,
+				{ ssh_command: ssh_command, #ssh
+				  ssh_options: ssh_options, #the options to ssh
+				  ssh_command_options: ([ssh_command]+ssh_options).shelljoin, # ssh + options
 				  user: user,
 				  host: host,
 				  path: path,
-				  hostssh: user ? "#{user}@#{host}" : host,
-				  command: commands }
+				  hostssh: hostssh, #user@host
+				  fullpath: fullpath, #user@host:path
+				  command: commands } #commands
 			end
 		end
 

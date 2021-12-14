@@ -193,6 +193,19 @@ module ShellHelpers
 				return head.split_all + [tail]
 			end
 
+      #like rsync, split 'foo/./bar'
+      #if fallback, do a normal split dirname/basename
+			def rel_split(fallback: true)
+				if (i=components.index("."))
+					dirname=Pathname.new(components[0..i-1].join("/"))
+					basename=Pathname.new(components[i+1..-1].join("/"))
+				elsif fallback
+				  dirname=self.dirname
+				  basename=self.basename
+				end
+				return dirname,basename
+			end
+
 			def backup(suffix: '.old', overwrite: true)
 				if self.exist?
 					filebk=self.append_name(suffix)
