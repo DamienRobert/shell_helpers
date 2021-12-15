@@ -203,9 +203,9 @@ module ShellHelpers
 			path.map { |dir| Pathname.glob(dir+pattern) }.flatten
 		end
 
-		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, clobber: true, expected: 23, chown: nil, sshcommand: nil, exclude: [], **rsync_sh_opts, &b)
+		def rsync(*files, out, default_opts: "-vcz", preserve: true, partial: true, keep_dirlinks: false, backup: false, relative: false, delete: false, clean_out: false, clobber: true, expected: 23, chown: nil, sshcommand: nil, exclude: [], rsync_opts: [], rsync_late_opts: [], **rsync_sh_opts, &b)
 			require 'shell_helpers/sh'
-			rsync_opts=[*opts.delete(:rsync_opts)] || []
+			rsync_opts=[*rsync_opts]
 			rsync_opts << default_opts
 			rsync_opts << "-a" if preserve
 			rsync_opts << "-P" if partial #--partial --progress
@@ -238,7 +238,7 @@ module ShellHelpers
 				rsync_opts << "-e"
 				rsync_opts << sshcommand.shellescape
 			end
-			rsync_opts+=rsync_sh_opts.delete(:rsync_late_opts)||[]
+			rsync_opts+=[*rsync_late_opts]
 			cmd=["rsync"]+rsync_opts+files.map(&:to_s)+[out.to_s]
 			Sh.sh(*cmd, expected: expected, **rsync_sh_opts, &b)
 			#expected: rsync error code 23 is some files/attrs were not transferred
