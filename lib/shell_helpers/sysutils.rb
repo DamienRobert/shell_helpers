@@ -192,8 +192,7 @@ module ShellHelpers
             return parse_blkid(%x/blkid -o export -t #{key.to_s.upcase}=#{label.shellescape}/).values
           end
         end
-        # unfortunately `blkid PARTTYPE=...` does not work, so we need to parse
-        # ourselves
+        # unfortunately `blkid PARTTYPE=...` does not work, so we need to parse ourselves
         if props[:parttype]
           find_devices(props, method: :all)
         end
@@ -212,7 +211,7 @@ module ShellHelpers
             ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
             !ptype or !fsprops[key] or ptype==fsprops[key]
           end
-          # their should at least be one matching label
+          # there should at least be one matching label
           next false unless tokens.select do |key|
             ptype=props[key]
             ptype=partition_type(ptype) if key==:parttype and ptype.is_a?(Symbol)
@@ -424,7 +423,7 @@ module ShellHelpers
       fs=fs.values if fs.is_a?(Hash)
       fs_tomake=fs.select {|k| k[:fstype]}
       fs_tomake.each do |partfs|
-        dev=SH.find_device(partfs.slice(:partuuid, :partlabel, :parttype)) #we only look at part* to find the device, since the fs is not yet built
+        dev=SH.find_device(partfs.slice(:partuuid, :partlabel, :parttype)) #we only look at part* to find the device, since the fs is not yet built. This only matters is there is a preexisting fs (hence label) which may such mismatch with our new label. Still, when check: false, we still want to find this device, hence look only at part*
         if dev
           opts=partfs[:fsoptions]||[]
           fstype=partfs[:fstype]

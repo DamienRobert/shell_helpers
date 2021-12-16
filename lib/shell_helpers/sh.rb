@@ -244,6 +244,7 @@ module ShellHelpers
 			command_name = curopts[:name] || command_name(command) #this keep the options
 			# this should not be needed
 			command=command.shelljoin if curopts[:escape]
+
 			if log
 				sh_logger.send(curopts[:log_level_execute], SimpleColor.color("Executing '#{command_name}'",:bold))
 				p_env, p_args, p_opts= Run.process_command(*command, **opts)

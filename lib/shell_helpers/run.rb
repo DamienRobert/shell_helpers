@@ -53,7 +53,7 @@ module ShellHelpers
 		end
 
 		# get the args, environment and spawning options
-		def process_command(*args, **opts)
+		def process_command(*args, pre: nil, post: nil, wrap: nil, **opts)
 			spawn_opts={}
 			if args.last.kind_of?(Hash)
 				#we may have no symbol keywords
@@ -67,11 +67,28 @@ module ShellHelpers
 			env.merge!(opts.delete(:env)||{})
 			args=args.map.with_index {|arg, i| i == 0 && arg.is_a?(Array) ? arg : arg.to_s} if args.length > 1
 			spawn_opts.merge!(opts)
+			if pre
+				if args.length > 1
+					args=args.unshift(*pre)
+				else
+				  args=["#{pre.is_a?(Enumerable) ? pre.shelljoin : pre} #{args.first}"]
+				end
+			end
+			if post
+				if args.length > 1
+					args=args.push(*post)
+				else
+				  args=["#{args.first} #{post.is_a?(Enumerable) ? post.shelljoin : post}"]
+				end
+			end
+			if wrap
+			  args=wrap.call(*args)
+			end
 			if sudo
 				if args.length > 1
-					args.unshift(*Run.sudo_args(sudo)) 
+					args.unshift(*Run.sudo_args(sudo))
 				else
-					args="#{Run.sudo_args(sudo).shelljoin} #{args.first}"
+					args=["#{Run.sudo_args(sudo).shelljoin} #{args.first}"]
 				end
 			end
 			return env, args, spawn_opts
