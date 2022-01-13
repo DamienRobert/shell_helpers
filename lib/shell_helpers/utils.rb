@@ -26,10 +26,10 @@ module ShellHelpers
 				print r
 			when :exec
 				require 'shell_helpers/sh'
-				return ShLog.sh(r)
+				return Sh.sh(r)
 			when :exec_quiet
 				require 'shell_helpers/sh'
-				return Sh.sh(*r)
+				return ShQuiet.sh(*r)
 			end
 			return r
 		end
