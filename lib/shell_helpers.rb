@@ -68,9 +68,17 @@ module ShellHelpers
 		end
 
 		def process_log_options(recipient)
-			SimpleColor.enabled=recipient[:color] if recipient.key?(:color)
-			SH.logger.cli_level(recipient[:loglevel]) if recipient.key?(:loglevel)
+		  used_options=[]
+			if recipient.key?(:color)
+			  SimpleColor.enabled=recipient[:color]
+			  used_options << :color
+			end
+			if recipient.key?(:loglevel)
+			  SH.logger.cli_level(recipient[:loglevel])
+			  used_options << :loglevel
+			end
 			if recipient.key?(:debug)
+			  used_options << :debug
 				debug=recipient[:debug]
 				if debug=="pry"
 					puts "# Launching pry"
@@ -79,6 +87,7 @@ module ShellHelpers
 					SH.debug(debug)
 				end
 			end
+			used_options
 		end
 	end
 	include LogHelpers
