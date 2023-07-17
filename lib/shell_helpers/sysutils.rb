@@ -423,7 +423,8 @@ module ShellHelpers
       fs=fs.values if fs.is_a?(Hash)
       fs_tomake=fs.select {|k| k[:fstype]}
       fs_tomake.each do |partfs|
-        dev=SH.find_device(partfs.slice(:partuuid, :partlabel, :parttype)) #we only look at part* to find the device, since the fs is not yet built. This only matters is there is a preexisting fs (hence label) which may such mismatch with our new label. Still, when check: false, we still want to find this device, hence look only at part*
+        dev=SH.find_device(partfs.slice(:partuuid, :partlabel, :parttype, :disk)) #we only look at part* to find the device, since the fs is not yet built. This only matters is there is a preexisting fs (hence label) which may such mismatch with our new label. Still, when check: false, we still want to find this device, hence look only at part*
+        #Update: add :disk, eg in case there are server parttypte: boot partitions
         if dev
           opts=partfs[:fsoptions]||[]
           fstype=partfs[:fstype]
