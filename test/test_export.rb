@@ -1,5 +1,6 @@
 require 'helper'
 require 'shell_helpers'
+require 'set'
 
 describe SH::Export do
 	it "can export a value" do
