@@ -292,6 +292,7 @@ module ShellHelpers
     def partition_type(type, mode: :guid)
       if mode==:symbol
         return type if type.is_a?(Symbol)
+        return nil unless type
         %i(boot swap home x86_root x86-64_root arm64_root arm32_root linux).each do |symb|
           %i(hexa guid).each do |mode|
             partition_type(symb, mode: mode) == type.downcase and return symb
